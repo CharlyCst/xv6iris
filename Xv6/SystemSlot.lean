@@ -56,8 +56,8 @@ mint's ledger, the claim at its view, and `fsBootSnapWf`).
 5. **Trace hooks at an arbitrary trace predicate `Ptp`.**  Rocq fixes the trace slot at `obs_pred_at γobs` in
    `fs_trace_hook`/`xv6_trace_hook`; neither proof reads it, so `Ptp` is a
    parameter here (the unit instance passes `obsPredAt γobs`, the ledger
-   instance its own).  (No boot-image argument: D47 made it the language
-   constant `MachCSL.bootImage`.)
+   instance its own).  (No boot-image argument: D47 made it the constant
+   `MachCSL.bootImage`.)
    The record literal is `AppIface.bootFixedGS` (D49; `Xv6/AppIface.lean`
    deviation 1).
 6. `xv6TracePure`'s second conjunct is `g.pow = true → mmOk g.m` (Lean's

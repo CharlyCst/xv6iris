@@ -1,13 +1,13 @@
 /-
-THE BOOT IMAGE, A LANGUAGE CONSTANT (Rocq `RiscvLang.boot_image` /
-`boot_byte`).
+XV6'S BOOT IMAGE (Rocq `RiscvLang.boot_image` / `boot_byte`).
 
-What the power-on arm resets memory to (`MachCSL.bootFacts`): the kernel
-ELF's loaded file image (`MachCSL.KernelElf`, dumped by
-tools/dump_elf_image.py) below `elfEnd` (Rocq `img_end`), and zero at every
-other RAM address (`.bss` and the free pages).  Like Rocq's `boot_mem`, the
-image is part of the language, not of the initial state: no adequacy theorem
-takes a premise about it.
+What xv6's power thread (`Expr.power bootImage`) resets memory to
+(`MachCSL.bootFacts bootImage`): the kernel ELF's loaded file image
+(`MachCSL.KernelElf`, dumped by tools/dump_elf_image.py) below `elfEnd` (Rocq
+`img_end`), and zero at every other RAM address (`.bss` and the free pages).
+The language fixes no image (another client runs `Expr.power` at its own);
+like Rocq's `boot_mem`, it is part of the program, not of the initial state:
+no adequacy theorem takes a premise about it.
 
 `bootImage` is a map with one entry per RAM byte (2^27 of them), so it is
 SEALED (an `opaque` witness of its spec `BootImageSpec`): nothing -- not even the kernel's defeq

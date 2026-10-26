@@ -20,7 +20,7 @@ the trace is pure. -/
 theorem xv6FsAdequacy_closed {hlc : HasLC}
     (g : GState) (Hgen0 : g.gen = 0) (Hpow : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ xv6TracePure fsimgCov fsimgSb.sbLogstart g2 :=
   xv6FsAdequacy_xv6GF (hlc := hlc) userProof g Hgen0 Hpow Hdisk n κs t2 g2 hsteps
 

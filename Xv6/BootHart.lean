@@ -19,7 +19,7 @@ image alone, and that both the chain (`BootChain`) and the shared allocation
   bridge (`Xv6.bootGprRest` takes the other 23 GPRs out of it).
 * AT THE ERA: `MachCSL.riscvPowerAdequacy`'s `Hboot` (through
   `MachCSL.wp_power`) hands the client `powerBootRes E gen σ` with
-  `bootFacts σ`; the client runs its harts at `MachCSL.MachGS.ofEra E gen …`,
+  `bootFacts bootImage σ`; the client runs its harts at `MachCSL.MachGS.ofEra E gen …`,
   whose `regName` IS `E.regName`, so `Xv6.bootEntryPre` applies to
   `powerBootRes`'s per-hart register row verbatim.
 

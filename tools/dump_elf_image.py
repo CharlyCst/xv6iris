@@ -4,8 +4,8 @@
 The kernel links as ONE PT_LOAD segment; its file bytes `[vaddr, vaddr +
 filesz)` (.text, .rodata, .eh_frame, .data, .got, .got.plt and the padding
 between them) are what the loader puts in RAM; `.bss` (up to vaddr + memsz)
-and the rest of RAM are zero.  This is the language constant the power-on
-arm reloads (MachCSL.bootImage; Rocq `RiscvLang.boot_image`, which is the
+and the rest of RAM are zero.  This is xv6's boot image, the one its power
+thread reloads (MachCSL.bootImage; Rocq `RiscvLang.boot_image`, which is the
 same bytes, filtered below `img_end`).
 
 Encoding: rows of 32 bytes, each ONE big-endian hex `Nat` (so a row reads like
@@ -54,8 +54,8 @@ THE KERNEL'S LOADED IMAGE (Rocq `KernelInstrs.kernel_bytes` and
 `KernelData.kernel_data`): the file bytes of the kernel ELF's one PT_LOAD
 segment, `[elfBase, elfEnd)` = .text, .rodata, .eh_frame, .data, .got,
 .got.plt and the padding between them.  `.bss` (`[elfEnd, elfMemEnd)`) and the
-rest of RAM are zero.  `MachCSL.bootImage` (the language's power-on memory) is
-built from `elfByte`.
+rest of RAM are zero.  `MachCSL.bootImage` (xv6's boot image, the power-on
+memory of its runs) is built from `elfByte`.
 
 Rows of 32 bytes, each one big-endian hex `Nat` (it reads like a hexdump
 line: the first byte is the leftmost pair of digits), 128 rows to a page.

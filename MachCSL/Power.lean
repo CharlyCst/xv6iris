@@ -12,8 +12,8 @@ two arms are the machine's power events:
   memory heap, allocated at the booted machine -- registers it for the new
   generation, and hands the *boot client* everything it owns
   (`powerBootRes`) together with the fact that the machine is booted
-  from THE boot image (`bootFacts σ`: memory is the language constant
-  `bootImage`, Rocq `boot_image`).  The two interrupt pins of every hart do NOT go to the
+  from the power thread's boot image (`bootFacts img σ`, Rocq
+  `boot_image`).  The two interrupt pins of every hart do NOT go to the
   client: they are split out of the register cells and sealed into
   `wireInv` (`MachCSL.WireInv`), which the client gets instead.  The client owes back the WPs of the new generation's harts,
   which the arm forks.
@@ -434,7 +434,7 @@ later; the started and durable authorities are lent and returned.
 Deviation from Rocq: Rocq's older power-on yield also carried the echo window
 token (`riscv_win_res`); Rocq @ 1900b8a43 yields the console claim and the
 turn only, as here. -/
-theorem wp_power [KernelMap]
+theorem wp_power [KernelMap] (img : Mem)
     (Ppure : (Nat → BitVec 8) → Prop)
     (Hproj : ∀ dk : Nat → BitVec 8,
       diskFixedAuth dk ∗ ▷ MachFixedGS.crashPred (hlc := hlc) (GF := GF) ⊢@{IProp GF}
@@ -483,13 +483,13 @@ theorem wp_power [KernelMap]
       ▷ MachFixedGS.obsPred (hlc := hlc) (GF := GF) ∗ obsHalf h ⊢@{IProp GF}
         |==> ◇ (▷ MachFixedGS.obsPred (hlc := hlc) (GF := GF) ∗ obsHalf (h ++ [e])))
     (Hboot : ∀ (E : EraGS) (gen : Nat) (σ : MState),
-      bootFacts σ →
+      bootFacts img σ →
       (∃ ds0 : DevStates, σ.devs = ds0.reset) →
       Ppure (diskOf σ.devs) →
       obsInv ∗ powerBootRes Mof Rb Tn'' E gen σ ⊢@{IProp GF} |={⊤}=>
         ([∗list] cpu ∈ cpus, hartWP gen cpu (pure ())) ∗
         ([∗list] d ∈ DevId.all, devWP gen d rootTask (pure ()))) :
-    crashInv ∗ obsInv ⊢@{IProp GF} WP Expr.power @ Stuckness.NotStuck; ⊤ {{ _v, True }} := by
+    crashInv ∗ obsInv ⊢@{IProp GF} WP (Expr.power img) @ Stuckness.NotStuck; ⊤ {{ _v, True }} := by
   unfold obsInv crashInv
   iintro ⟨#Hcinv, #Hoinv⟩
   iloeb as IH
@@ -529,8 +529,8 @@ theorem wp_power [KernelMap]
     rw [hcount]
     isplit
     · ipureintro
-      exact ⟨[.powerOn], .power, bootWitness g, powerFork g.gen,
-        primStep_power_on hpow (bootShape_bootWitness g)⟩
+      exact ⟨[.powerOn], .power img, bootWitness img g, powerFork g.gen,
+        primStep_power_on hpow (bootShape_bootWitness img g)⟩
     inext
     iintro %e₂ %g₂ %eₜ %Hstep _
     obtain ⟨rfl, h⟩ := primStep_power_inv Hstep
@@ -715,7 +715,7 @@ theorem wp_power [KernelMap]
     rw [hcount] at Hok
     isplit
     · ipureintro
-      exact ⟨[.powerOff], .power, _, [], primStep_power_off hpow⟩
+      exact ⟨[.powerOff], .power img, _, [], primStep_power_off hpow⟩
     inext
     iintro %e₂ %g₂ %eₜ %Hstep _
     obtain ⟨rfl, h⟩ := primStep_power_inv Hstep

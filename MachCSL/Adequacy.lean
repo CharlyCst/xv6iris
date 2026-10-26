@@ -2,11 +2,12 @@
 MachCSL: ADEQUACY of the power thread (Rocq `RiscvAdequacy.v` :1213–2154).
 
 Iris's `wp_strong_adequacy_gen` applied to the one-thread program
-`[Expr.power]`, over `wp_power` (`MachCSL/Power.lean`).  The conclusion is
-CSL-free: every configuration reachable from a powered-off, never-booted
-machine, under ANY schedule of power cycles, hart steps and device steps, has
-only reducible threads, and the client's pure trace predicate `phi` holds of the
-reached state and of the run's observable trace.
+`[Expr.power img]` (any boot image `img`), over `wp_power`
+(`MachCSL/Power.lean`).  The conclusion is CSL-free: every configuration
+reachable from a powered-off, never-booted machine, under ANY schedule of
+power cycles, hart steps and device steps, has only reducible threads, and
+the client's pure trace predicate `phi` holds of the reached state and of the
+run's observable trace.
 
 Three stages.
 
@@ -66,8 +67,8 @@ counter at 0, then `Pc γdisk γswap γreg γstart c` from `HPc`, sealed into
 `crashInv` (`inv crashN crashPred` at the literal, `crashN = nroot .@
 "crash"`) and consumed at the end of the run by `Hphi` beside `▷ Pt`.
 `bootFixedGS` carries `γdisk ndisk γswap Pcp` in Rocq's positions.  The boot
-image is not a record field: it is the language constant `MachCSL.bootImage`
-(Rocq `RiscvLang.boot_image`), so no hook takes a premise about it.
+image is not a record field: it is the power thread's `img` (Rocq's language
+constant `RiscvLang.boot_image`), so no hook takes a premise about it.
 `wp_power`'s crash hooks (`Ppure`/`Hproj`/`Mof`/`Rb`/`Hswap`) are taken at
 the raw gnames and passed through; `Hobs` is lent the durable authority;
 `Hboot` gets the projection `Ppure` at its own disk and, inside
@@ -99,11 +100,11 @@ interpretation, the power thread's WP, and the FINAL OBSERVATION -- at the
 last state of the run, with the machine's half of the history (which is then
 the run's trace) and its well-formedness, a fancy update to `∅` into the pure
 `phi`, so every invariant may be opened and never closed. -/
-def adeqBirth [MachFixedGS hlc GF] (g : GState) (κs : List Obs)
+def adeqBirth [MachFixedGS hlc GF] (img : Mem) (g : GState) (κs : List Obs)
     (phi : GState → List Obs → Prop) : IProp GF := iprop%
   ⌜MachFixedGS.obsTotal (hlc := hlc) (GF := GF) = κs⌝ ∗
   (powerInterp g ∗ obsInterp g κs) ∗
-  WP Expr.power @ Stuckness.NotStuck; ⊤ {{ _v, True }} ∗
+  WP (Expr.power img) @ Stuckness.NotStuck; ⊤ {{ _v, True }} ∗
   (∀ (g2 : GState) (h : List Obs), powerInterp g2 -∗ obsHalf h -∗ ⌜obsWf h g2⌝ -∗
     |={⊤,∅}=> ⌜phi g2 h⌝)
 
@@ -111,18 +112,18 @@ def adeqBirth [MachFixedGS hlc GF] (g : GState) (κs : List Obs)
 if the client can build it with its birth obligations, the run is safe and
 `phi` holds of its last state and trace.  Independent of the record's fields
 beyond `obsTotal` (see the header, CRASH). -/
-theorem powerAdequacyCore [MachGpreS hlc GF] (g : GState) (phi : GState → List Obs → Prop)
+theorem powerAdequacyCore [MachGpreS hlc GF] (img : Mem) (g : GState) (phi : GState → List Obs → Prop)
     (Hwp : ∀ [Hinv : InvGS_gen hlc GF] (κs : List Obs),
-      ⊢@{IProp GF} |={⊤}=> ∃ F : MachFixedGS hlc GF, @adeqBirth hlc GF (F.withInv Hinv) g κs phi)
+      ⊢@{IProp GF} |={⊤}=> ∃ F : MachFixedGS hlc GF, @adeqBirth hlc GF (F.withInv Hinv) img g κs phi)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power img], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ phi g2 κs := by
   suffices h : (∀ e2, e2 ∈ t2 → NotStuck (Val := Val) (e2, g2)) ∧ phi g2 κs by
     refine ⟨fun e2 he => ?_, h.2⟩
     rcases h.1 e2 he with hv | hr
     · exact absurd hv (by simp [ToVal.toVal])
     · exact hr
-  refine wp_strong_adequacy_gen (hlc := hlc) (GF := GF) Stuckness.NotStuck [Expr.power] g n κs t2 g2
+  refine wp_strong_adequacy_gen (hlc := hlc) (GF := GF) Stuckness.NotStuck [Expr.power img] g n κs t2 g2
     _ (fun _ => 0) ?_ hsteps
   intro Hinv
   have H := @Hwp Hinv κs
@@ -261,9 +262,9 @@ The hooks, in Rocq's order:
 * `Hboot` -- the client's whole system, told the record's shape, handed the
   projection at its own disk and, inside `powerBootRes`, the crash invariant
   and the lent resource; the booted machine's `bootFacts` are at the
-  language's boot image `bootImage` (Rocq's `boot_image`): no premise on the
-  initial state's memory. -/
-theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (g : GState)
+  boot image `img` the run starts from (Rocq's `boot_image`): no premise on
+  the initial state's memory. -/
+theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (img : Mem) (g : GState)
     -- THE BIRTH, its yield split between the two slots (Rocq sync SY3-A1):
     -- `Cls c` to the crash slot's birth (`HPc`), `Clt c` to the trace slot's
     -- (`HPt`); handed the machine's four fixed gnames, `Born` what it says of
@@ -376,16 +377,16 @@ theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (g : GSt
           (Wd c) (HWd c) (HWdt c) (Rw c) (HRw c) (HRwt c) Uf (Ucr c) (Ucx c) (Uco c)
           (Ue c) (HUe c) (Uet c) (Uea c) (HUea c) →
       Born γdisk γswap γreg γstart c →
-      ∀ (E : EraGS) (gen : Nat) (σ : MState), bootFacts σ →
+      ∀ (E : EraGS) (gen : Nat) (σ : MState), bootFacts img σ →
         (∃ ds0 : DevStates, σ.devs = ds0.reset) →
         Ppure (diskOf σ.devs) →
         obsInv ∗ powerBootRes Mof (Rb c) (Tn'' c) E gen σ ⊢@{IProp GF} |={⊤}=>
           ([∗list] cpu ∈ cpus, hartWP gen cpu (pure ())) ∗
           ([∗list] d ∈ DevId.all, devWP gen d rootTask (pure ())))
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power img], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ phi g2 κs := by
-  refine powerAdequacyCore (hlc := hlc) (GF := GF) g phi ?_ n κs t2 g2 hsteps
+  refine powerAdequacyCore (hlc := hlc) (GF := GF) img g phi ?_ n κs t2 g2 hsteps
   intro Hinv T
   -- THE DURABLE DISK, FIRST: its full fragments establish the crash predicate
   imod (diskImgSized_alloc (GF := GF) (diskOf g.m.devs) ndisk) with ⟨%γdisk, Hdauth, Hdfr⟩
@@ -443,7 +444,7 @@ theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (g : GSt
           (Tk c) (Hk c) γobs T (Pt γobs c) γhist
       (Tg c) (HTg c) (HTgt c) (Kc c) (HKc c) (HKct c) (Cres c) (HCrest c)
           (Wd c) (HWd c) (HWdt c) (Rw c) (HRw c) (HRwt c) Uf (Ucr c) (Ucx c) (Uco c)
-          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c)).withInv Hinv) _
+          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c)).withInv Hinv) _ img
       Ppure (fun dk => Hproj γdisk γswap γreg γstart c dk)
       Mof (Rb c) (Tn c) (Tn' c) (Tn'' c) (fun E gen dk => Hswap γdisk γswap γreg γstart c hborn E gen dk)
       (fun h on dk hs => Hobs γdisk γobs c h on dk hs)

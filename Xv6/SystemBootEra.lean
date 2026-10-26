@@ -491,7 +491,7 @@ theorem xv6BootEra {CT : Type} (N : Type) (appFs : CT → N → Aview → IProp 
       γreg γd γsw γobs γhist c T Ptp Tkp Hkp Uf Ucr Ucx Uco
       Ue HUe Uet Uea HUea)
       EraPerm (hlc := hlc) (GF := GF))
-    (E : EraGS) (gen : Nat) (σ : MState) (hbf : bootFacts σ)
+    (E : EraGS) (gen : Nat) (σ : MState) (hbf : bootFacts bootImage σ)
     (hdv : ∃ ds0 : DevStates, σ.devs = ds0.reset)
     (hpure : fsBootPure cov sb.sbLogstart (diskOf σ.devs))
     (hcovin : fsCovIn cov XV6_DISK_BYTES)

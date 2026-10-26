@@ -891,14 +891,14 @@ theorem mmOk_setRt (σ : MState) (d : DevId) (rt : DevRt)
   · simp only [hd, if_false]; exact h5 d'
 
 /-- A booted machine satisfies the step invariant. -/
-theorem mmOk_boot (σ : MState) (h : bootFacts σ) : mmOk σ := by
+theorem mmOk_boot {img : Mem} (σ : MState) (h : bootFacts img σ) : mmOk σ := by
   obtain ⟨hmem, hlog, hhart, _, hrt⟩ := h
   refine ⟨?_, ?_, ?_, ?_, fun d => by rw [hrt d]; exact Nat.zero_lt_one⟩
   · intro a H hget
     rw [hmem, imgFlat_get?] at hget
     split at hget
     case isFalse => simp at hget
-    cases hi : bootImage[a]? with
+    cases hi : img[a]? with
     | none => rw [hi] at hget; simp at hget
     | some v =>
       rw [hi] at hget
@@ -1094,7 +1094,7 @@ def diskFixedInterp (g : GState) : IProp GF := diskFixedAuth (diskOf g.m.devs)
 current era's interpretation while powered.  The durable disk's authority
 rides LAST (Rocq places `disk_fixed_interp` third; last here so the
 positional patterns of the lifting rules keep their shape).  No image pin:
-the boot memory is the language constant `bootImage`, as in Rocq. -/
+the boot memory is the power thread's (`Expr.power img`). -/
 def powerInterp (g : GState) : IProp GF := iprop%
   genAuth g.gen ∗ startAuth (startCount g) ∗
   (∃ R : RegMapF EraGS,

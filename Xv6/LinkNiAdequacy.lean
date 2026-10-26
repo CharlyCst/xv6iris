@@ -82,7 +82,7 @@ trace obeying the class law. -/
 theorem xv6NiAdequacy {hlc : HasLC}
     (g : GState) (Hgen0 : g.gen = 0) (Hpow : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ xv6NiPhi g2 κs :=
   letI : MachGpreS hlc xv6GF := xv6GF_machGpreS hlc 0
   haveI : Xv6AppLaws (hlc := hlc) (appTriv xv6GF) := appTriv_laws userProof
@@ -101,8 +101,8 @@ theorem xv6NiTwoRun {hlc : HasLC}
     (g₁ g₂ : GState) (Hgen₁ : g₁.gen = 0) (Hpow₁ : g₁.pow = false) (Hdisk₁ : diskOf g₁.m.devs = fsImgDisk)
     (Hgen₂ : g₂.gen = 0) (Hpow₂ : g₂.pow = false) (Hdisk₂ : diskOf g₂.m.devs = fsImgDisk)
     (n₁ n₂ : Nat) (κs₁ κs₂ : List Obs) (t₁ t₂ : List Expr) (g₁' g₂' : GState)
-    (hsteps₁ : ([Expr.power], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
-    (hsteps₂ : ([Expr.power], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
+    (hsteps₁ : ([Expr.power bootImage], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
+    (hsteps₂ : ([Expr.power bootImage], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
     ∃ F₁ F₂, niOk κs₁ F₁ ∧ niOneShot κs₁ F₁ ∧ niChain F₁ (niHist F₁) ∧
       niOk κs₂ F₂ ∧ niOneShot κs₂ F₂ ∧ niChain F₂ (niHist F₂) ∧ ∀ q : NiInc,
       NiInClass (utrace q κs₁ F₁) →
@@ -125,8 +125,8 @@ theorem xv6NiTwoRunObs {hlc : HasLC}
     (g₁ g₂ : GState) (Hgen₁ : g₁.gen = 0) (Hpow₁ : g₁.pow = false) (Hdisk₁ : diskOf g₁.m.devs = fsImgDisk)
     (Hgen₂ : g₂.gen = 0) (Hpow₂ : g₂.pow = false) (Hdisk₂ : diskOf g₂.m.devs = fsImgDisk)
     (n₁ n₂ : Nat) (κs₁ κs₂ : List Obs) (t₁ t₂ : List Expr) (g₁' g₂' : GState)
-    (hsteps₁ : ([Expr.power], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
-    (hsteps₂ : ([Expr.power], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
+    (hsteps₁ : ([Expr.power bootImage], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
+    (hsteps₂ : ([Expr.power bootImage], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
     ∃ F₁ F₂, niOk κs₁ F₁ ∧ niOneShot κs₁ F₁ ∧ niOk κs₂ F₂ ∧ niOneShot κs₂ F₂ ∧ ∀ q : NiInc,
       NiInClass (utrace q κs₁ F₁) →
       (utrace q κs₁ F₁).map NiStep.obsInput = (utrace q κs₂ F₂).map NiStep.obsInput →
@@ -149,8 +149,8 @@ theorem xv6NiOut {hlc : HasLC}
     (g₁ g₂ : GState) (Hgen₁ : g₁.gen = 0) (Hpow₁ : g₁.pow = false) (Hdisk₁ : diskOf g₁.m.devs = fsImgDisk)
     (Hgen₂ : g₂.gen = 0) (Hpow₂ : g₂.pow = false) (Hdisk₂ : diskOf g₂.m.devs = fsImgDisk)
     (n₁ n₂ : Nat) (κs₁ κs₂ : List Obs) (t₁ t₂ : List Expr) (g₁' g₂' : GState)
-    (hsteps₁ : ([Expr.power], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
-    (hsteps₂ : ([Expr.power], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
+    (hsteps₁ : ([Expr.power bootImage], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
+    (hsteps₂ : ([Expr.power bootImage], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
     ∃ F₁ F₂, niOk κs₁ F₁ ∧ niOneShot κs₁ F₁ ∧ niChain F₁ (niHist F₁) ∧
       niOk κs₂ F₂ ∧ niOneShot κs₂ F₂ ∧ niChain F₂ (niHist F₂) ∧ ∀ q : NiInc,
       (utrace q κs₁ F₁).map NiStep.outInput = (utrace q κs₂ F₂).map NiStep.outInput →
@@ -173,8 +173,8 @@ theorem xv6NiPrefix {hlc : HasLC}
     (g₁ g₂ : GState) (Hgen₁ : g₁.gen = 0) (Hpow₁ : g₁.pow = false) (Hdisk₁ : diskOf g₁.m.devs = fsImgDisk)
     (Hgen₂ : g₂.gen = 0) (Hpow₂ : g₂.pow = false) (Hdisk₂ : diskOf g₂.m.devs = fsImgDisk)
     (n₁ n₂ : Nat) (κs₁ κs₂ : List Obs) (t₁ t₂ : List Expr) (g₁' g₂' : GState)
-    (hsteps₁ : ([Expr.power], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
-    (hsteps₂ : ([Expr.power], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
+    (hsteps₁ : ([Expr.power bootImage], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
+    (hsteps₂ : ([Expr.power bootImage], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
     ∃ F₁ F₂, niOk κs₁ F₁ ∧ niOneShot κs₁ F₁ ∧ niChain F₁ (niHist F₁) ∧
       niOk κs₂ F₂ ∧ niOneShot κs₂ F₂ ∧ niChain F₂ (niHist F₂) ∧ ∀ q : NiInc,
       NiInClass (utrace q κs₁ F₁) →
@@ -201,8 +201,8 @@ theorem xv6NiDet {hlc : HasLC}
     (g₁ g₂ : GState) (Hgen₁ : g₁.gen = 0) (Hpow₁ : g₁.pow = false) (Hdisk₁ : diskOf g₁.m.devs = fsImgDisk)
     (Hgen₂ : g₂.gen = 0) (Hpow₂ : g₂.pow = false) (Hdisk₂ : diskOf g₂.m.devs = fsImgDisk)
     (n₁ n₂ : Nat) (κs₁ κs₂ : List Obs) (t₁ t₂ : List Expr) (g₁' g₂' : GState)
-    (hsteps₁ : ([Expr.power], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
-    (hsteps₂ : ([Expr.power], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
+    (hsteps₁ : ([Expr.power bootImage], g₁) -<κs₁>->ₜₚ^[n₁] (t₁, g₁'))
+    (hsteps₂ : ([Expr.power bootImage], g₂) -<κs₂>->ₜₚ^[n₂] (t₂, g₂')) :
     ∃ F₁ F₂, niOk κs₁ F₁ ∧ niOneShot κs₁ F₁ ∧ niChain F₁ (niHist F₁) ∧ niUserChain F₁ ∧
       niOk κs₂ F₂ ∧ niOneShot κs₂ F₂ ∧ niChain F₂ (niHist F₂) ∧ niUserChain F₂ ∧ ∀ q : NiInc,
       NiOneOrigin q κs₁ F₁ → NiOneOrigin q κs₂ F₂ →
@@ -229,7 +229,7 @@ replay their exits (`NiTrace.niStrongInstance`; T's
 theorem xv6NiStrongInstance {hlc : HasLC}
     (g : GState) (Hgen0 : g.gen = 0) (Hpow : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     ∃ F, niOk κs F ∧ niOneShot κs F ∧ ∀ q : NiInc, ∀ s ∈ (utrace q κs F).takeWhile (fun s => !s.ecall), s.replays := by
   obtain ⟨-, F, hF, h1, -⟩ := xv6NiAdequacy (hlc := hlc) g Hgen0 Hpow Hdisk n κs t2 g2 hsteps
   exact ⟨F, hF, h1, niStrongInstance hF⟩

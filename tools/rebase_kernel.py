@@ -40,8 +40,8 @@ section below).
 The full pipeline for a new kernel build (the generated files first):
   1. tools/dump_kernel.py --kernel NEW_ELF --rev REV   (Xv6/KernelImage.lean, KernelTree)
   2. tools/gen_kernel_data.py --kernel NEW_ELF         (Xv6/KernelData.lean byte lists)
-  3. tools/dump_elf_image.py --kernel NEW_ELF --rev REV (MachCSL/KernelElf.lean: the
-     language's boot image, MachCSL.bootImage; Xv6.bootImage_wf checks 1-2 against it)
+  3. tools/dump_elf_image.py --kernel NEW_ELF --rev REV (MachCSL/KernelElf.lean: xv6's
+     boot image, MachCSL.bootImage; Xv6.bootImage_wf checks 1-2 against it)
   4. this tool (literal pass, then --fixup once, then --symbolic once, each with
      the same --intervals), then the manual residue.
 """

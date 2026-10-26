@@ -149,7 +149,7 @@ completed sync before it (`UnionOutPureSync.unionPhiSync`, sync SY3-A4). -/
 theorem unionAdequacyClosed_leaves {hlc : HasLC} (UL : UK_LEAVES)
     (g : GState) (Hgen0 : g.gen = 0) (Hpow0 : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ unionPhiSync κs :=
   letI : MachGpreS hlc unionGF := unionGF_machGpreS hlc 0
   unionAdequacy_unionGF (hlc := hlc) (unionHinitBoot (hlc := hlc) (GF := unionGF) UL)
@@ -162,7 +162,7 @@ engines): the only hypotheses are the machine's initial state. -/
 theorem unionAdequacyClosed {hlc : HasLC}
     (g : GState) (Hgen0 : g.gen = 0) (Hpow0 : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ unionPhiSync κs :=
   unionAdequacyClosed_leaves (hlc := hlc) ukLeaves_holds g Hgen0 Hpow0 Hdisk n κs t2 g2 hsteps
 
@@ -176,7 +176,7 @@ the demo refutes at every choice of boot states and records
 theorem unionSyncCutNeg {hlc : HasLC}
     (g : GState) (Hgen0 : g.gen = 0) (Hpow0 : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (t2 : List Expr) (g2 : GState) :
-    ¬ (([Expr.power], g) -<UnionAdmDemo.hSa>->ₜₚ^[n] (t2, g2)) := by
+    ¬ (([Expr.power bootImage], g) -<UnionAdmDemo.hSa>->ₜₚ^[n] (t2, g2)) := by
   intro hn
   obtain ⟨-, hphi⟩ := unionAdequacyClosed (hlc := hlc) g Hgen0 Hpow0 Hdisk n UnionAdmDemo.hSa t2 g2 hn
   obtain ⟨W, hW⟩ := hphi UnionAdmDemo.sa_disc
@@ -188,11 +188,11 @@ both cones, the corollary's `sa_disc` and `demo_sync_cut_neg` included. -/
 theorem unionResults {hlc : HasLC} :
     (∀ g : GState, g.gen = 0 → g.pow = false → diskOf g.m.devs = fsImgDisk →
       ∀ (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState),
-        (([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) →
+        (([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) →
           (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ unionPhiSync κs)
     ∧ (∀ g : GState, g.gen = 0 → g.pow = false → diskOf g.m.devs = fsImgDisk →
       ∀ (n : Nat) (t2 : List Expr) (g2 : GState),
-        ¬ (([Expr.power], g) -<UnionAdmDemo.hSa>->ₜₚ^[n] (t2, g2))) :=
+        ¬ (([Expr.power bootImage], g) -<UnionAdmDemo.hSa>->ₜₚ^[n] (t2, g2))) :=
   ⟨fun g h1 h2 h3 n κs t2 g2 hs => unionAdequacyClosed (hlc := hlc) g h1 h2 h3 n κs t2 g2 hs,
    fun g h1 h2 h3 n t2 g2 => unionSyncCutNeg (hlc := hlc) g h1 h2 h3 n t2 g2⟩
 

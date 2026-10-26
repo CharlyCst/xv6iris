@@ -81,9 +81,9 @@ thread hands `Hboot` (`MachCSL.powerBootRes`).  Parts 1 and 2 are
    `init_boot_bundle` / `cons_echo_shift` either (`xv6_boot_era` does);
    Lean's `bootPrimarySupply` bundles them with the rest, so the core is
    named separately.
-5. (Retired, D47.) No image hypothesis: the image is the language constant
-   `MachCSL.bootImage` (`bootImage_wf`), and `bootFacts σ` pins the era's
-   memory to it.
+5. (Retired, D47.) No image hypothesis: the image is the constant
+   `MachCSL.bootImage` (`bootImage_wf`) xv6's power thread carries, and
+   `bootFacts bootImage σ` pins the era's memory to it.
 6. `Rb` is not dropped here: `powerBootRes_unpack` hands it to the caller,
    who unpacks the lend BEFORE the allocation (Rocq: the caller splits it
    off and passes `Rb := emp`).
@@ -170,7 +170,7 @@ steps: `boot_bytes_split`, `boot_text_persist`, `kernel_text_intro`,
 `boot_data_ran`, the GOT persist): the era's memory cells become the
 kernel's read-only image, the GOT row every hart reads, `.data`'s four
 windows, `.bss` whole and the free RAM run. -/
-theorem bootShared_image (σ : MState) (hbf : bootFacts σ) :
+theorem bootShared_image (σ : MState) (hbf : bootFacts bootImage σ) :
     kmapStatic (GF := GF) ∗ memCells (MachGS.era (hlc := hlc) (GF := GF)) σ.mem ⊢
       |==> (kernelText ∗ kernelData ∗ bootGotRo ∗
         bootRan (imgFlat bootImage) MachCSL.KernelSyms.«first_1» (MachCSL.KernelSyms.«first_1» + 4) ∗
@@ -207,7 +207,7 @@ theorem bootShared_peel (Φ : CPU → IProp GF) :
 `boot_hart_pre`, `boot_hart_pre_combine`): the power thread's per-hart
 register rows, held-lock sets and running tokens, the GOT row, and the
 `stack0` / `cpus` windows, as one `bootHartRes` per hart beside its token. -/
-theorem bootShared_harts (σ : MState) (hbf : bootFacts σ) :
+theorem bootShared_harts (σ : MState) (hbf : bootFacts bootImage σ) :
     kmapStatic (GF := GF) ∗ bootGotRo ⊢
       ([∗list] cpu ∈ cpus, ∃ ξ : CtxId, ctxTok (hlc := hlc) (GF := GF) cpu ξ) -∗
       ([∗list] cpu ∈ cpus, regCellsNoPins (regName (hlc := hlc) (GF := GF) cpu) (σ.regs cpu)) -∗
@@ -377,7 +377,7 @@ def bsCarveOut (σ : MState) (ξ0 : CtxId) : IProp GF := iprop%
 memory cells, the per-hart rows and tokens; hart 0's token is destructed
 FIRST and its context is where every Bare-tier cell is carved (brief §4.2
 step 7). -/
-theorem bootShared_carve (σ : MState) (hbf : bootFacts σ) :
+theorem bootShared_carve (σ : MState) (hbf : bootFacts bootImage σ) :
     kmapStatic (GF := GF) ∗ memCells (MachGS.era (hlc := hlc) (GF := GF)) σ.mem ∗
       ([∗list] cpu ∈ cpus, ∃ ξ : CtxId, ctxTok (hlc := hlc) (GF := GF) cpu ξ) ∗
       ([∗list] cpu ∈ cpus, regCellsNoPins (regName (hlc := hlc) (GF := GF) cpu) (σ.regs cpu)) ∗
@@ -532,7 +532,7 @@ kernel-tier rows, the file system (`BootSharedFs`), and a fresh stamped
 context for the handover channel -- everything `bootHartPrimary` /
 `bootHartSecondary` and the device loops take, less the channel itself
 (`bootShared_started`, at the final instance). -/
-theorem bootSharedAlloc (σ : MState) (hbf : bootFacts σ) (ds0 : DevStates) (hds : σ.devs = ds0.reset)
+theorem bootSharedAlloc (σ : MState) (hbf : bootFacts bootImage σ) (ds0 : DevStates) (hds : σ.devs = ds0.reset)
     (ndisk : Nat) (S : FsStateRec) (sb : FsSb) (nib : Nat) (cov : ExtTreeSet Nat compare)
     (gsn gln gtn : GName) (Pb : Nat → List (BitVec 8))
     (hwf : fsBootSnapWf (diskOf σ.devs) ndisk S Pb sb nib cov) :

@@ -3,7 +3,7 @@
 
 A boot client is handed, by `MachCSL.riscvPowerAdequacy`'s `Hboot` (through
 `MachCSL.wp_power`), the machine's memory as RAW per-byte history cells
-(`MachCSL.memCells E σ.mem`, with `σ.mem = imgFlat bootImage` by `bootFacts`) plus
+(`MachCSL.memCells E σ.mem`, with `σ.mem = imgFlat bootImage` by `bootFacts bootImage`) plus
 the static-map claims (`MachCSL.kmapStaticAt E`) -- and nothing else.
 Everything a kernel precondition mentions (the read-only image `kctx` owns,
 typed cells, byte buffers, the kalloc page run) has to be CARVED out of
@@ -49,7 +49,7 @@ already persists the static claims (`MachCSL.kmapStatic_persist`) and hands
 them over as `kmapStaticAt E` in `powerBootRes`.
 
 DEVIATIONS from Rocq (none process-layer):
-1. (Retired, D47.)  As in Rocq, the boot memory is a language constant
+1. (Retired, D47.)  As in Rocq, the boot memory is a constant
    (`MachCSL.bootImage`, Rocq `RiscvLang.boot_image`), so `BootImage` is a
    theorem (`bootImage_wf`), not a premise, and no carve lemma takes an
    image argument.
@@ -70,6 +70,7 @@ Imports only definitional files.
 import Xv6.KallocDefs
 import Xv6.SpecEntry
 import Xv6.KernelData
+import MachCSL.BootImage
 
 namespace Xv6
 
@@ -370,7 +371,7 @@ structure BootImage (image : Mem) : Prop where
 /-! ### THE IMAGE IS THE ELF (Rocq: `boot_image` is a definition, so this is
 by computation there too)
 
-`MachCSL.bootImage` is the language's constant, built from the ELF's loaded
+`MachCSL.bootImage` is xv6's boot image, built from the ELF's loaded
 file image (`MachCSL.KernelElf`, tools/dump_elf_image.py).  The carve reads
 it through the text/rodata/data dumps (`Kernel.text`, `Kernel.rodata`,
 `Kernel.dataInit`); `bootImage_wf` checks every one of their bytes against
@@ -563,7 +564,7 @@ theorem bc_img_got : bcImgOk 0x8000a3e8 8 MachCSL.KernelSyms.«stack0» = true :
   decide +kernel
 
 /-- **THE BOOT IMAGE IS THE KERNEL'S ELF**, as far as the carve reads it (was
-the carve's premise; now a theorem about the language constant). -/
+the carve's premise; now a theorem about the constant). -/
 theorem bootImage_wf : BootImage bootImage where
   ram a h := ⟨bootByte a.toNat, by rw [bootImage_get?, if_pos h]⟩
   text k hk := bootImage_has _ _ _ (List.all_eq_true.1 bc_img_text_all k hk)

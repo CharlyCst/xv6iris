@@ -49,7 +49,7 @@ the rest at `X.toKpt`, SpecMain deviation 5):
   `mainGlobalsRaw`'s order (`bootCarveProc_mainGlobalsRaw`).
 
 Deviations (none process-layer):
-1. (Retired, D47.) The boot image is the language constant `bootImage`; `BootImage` is the theorem `bootImage_wf`.
+1. (Retired, D47.) The boot image is the constant `bootImage`; `BootImage` is the theorem `bootImage_wf`.
 2. The UART's two `.data` words are persisted with a basic update
    (`consWord_persist`) where Rocq reads a persisted physical snapshot and
    its ledger residue (`uart_field_word_of_pinned`): Lean's `ctxBytes`

@@ -320,7 +320,7 @@ theorem xv6AppAdequacy (g : GState) (sb : FsSb) (nib : Nat) (cov : ExtTreeSet Na
     (Hgen0 : g.gen = 0) (Hpow0 : g.pow = false)
     (Himg : fsBootImageWf (diskOf g.m.devs) XV6_DISK_BYTES sb nib cov)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ A.phi g2 κs :=
   xv6PowerAdequacyGen (hlc := hlc) (GF := GF) g sb nib cov
     A.fixed A.cls A.cl A.born AL.al_birth
@@ -486,7 +486,7 @@ Rocq's deliberately does not. -/
 theorem xv6AppAdequacyTriv_xv6GF {hlc : HasLC} (US : USER) (g : GState)
     (Hgen0 : g.gen = 0) (Hpow0 : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     ∀ e2, e2 ∈ t2 → Reducible (e2, g2) :=
   letI : MachGpreS hlc xv6GF := xv6GF_machGpreS hlc 0
   haveI : Xv6AppLaws (hlc := hlc) (appTriv xv6GF) := appTriv_laws US

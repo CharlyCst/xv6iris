@@ -48,7 +48,7 @@ theorem unionAdequacyAtImg (Hprog : UnionProgLaw (hlc := hlc) (GF := GF))
     (Himg : fsBootImageWf (diskOf g.m.devs) XV6_DISK_BYTES sb nib cov)
     (Hdk : fsBlocks (diskOf g.m.devs) = fsimgP) (Hsb : sb = fsimgSb) (Hcov : cov = fsimgCov)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ (appUnion (hlc := hlc) (GF := GF)).phi g2 κs :=
   haveI : Xv6AppLaws (hlc := hlc) (appUnion (hlc := hlc) (GF := GF)) := unionLaws Hprog
   xv6AppAdequacy (hlc := hlc) (GF := GF) g sb nib cov appUnion
@@ -74,7 +74,7 @@ theorem unionAdequacy_unionGF {hlc : HasLC}
       UnionProgLaw (hlc := hlc) (GF := unionGF))
     (g : GState) (Hgen0 : g.gen = 0) (Hpow0 : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ unionPhiSync κs :=
   letI : MachGpreS hlc unionGF := unionGF_machGpreS hlc 0
   unionAdequacyAtImg (hlc := hlc) (GF := unionGF) Hprog g fsimgSb fsimgNib fsimgCov Hgen0 Hpow0

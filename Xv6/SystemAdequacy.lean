@@ -33,11 +33,11 @@ item SA-7 (brief `notes/design-rulings.md` §3, §4.1).
 discharges it from `Hdisk` at the literal image).  (The former `Hknot`
 premise is gone: MachCSL's installed handler ∃-packs its environment, as
 Rocq's `intr_res` does, so no instance field has to equal a family that
-reads it.)  Nothing about the kernel image (D47: it is the
-language constant `MachCSL.bootImage`).  The language's PowerOn
-(`MachCSL.bootFacts`/`bootShape`) states the register side as a RUN of the
-boot program from arbitrary power-on garbage, as Rocq's `boot_facts` does:
-no table of reset values is trusted (`MachCSL.BootReset`).
+reads it.)  Nothing about the kernel image (D47: it is the constant
+`MachCSL.bootImage` the power thread carries, `Expr.power bootImage`).  The
+language's PowerOn (`MachCSL.bootFacts`/`bootShape`) states the register side
+as a RUN of the boot program from arbitrary power-on garbage, as Rocq's
+`boot_facts` does: no table of reset values is trusted (`MachCSL.BootReset`).
 
 ## DEVIATIONS from Rocq
 
@@ -233,10 +233,10 @@ theorem xv6PowerAdequacyGenU (g : GState) (sb : FsSb) (nib : Nat) (cov : ExtTree
     (Hgen0 : g.gen = 0) (Hpow : g.pow = false)
     (Himg : fsBootImageWf (diskOf g.m.devs) XV6_DISK_BYTES sb nib cov)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ phi g2 κs := by
   obtain ⟨hcovin, hlogsub, hls2⟩ := covFacts_ofImage _ _ sb nib cov Himg
-  refine riscvPowerAdequacy (hlc := hlc) (GF := GF) XV6_DISK_BYTES g CT Cls Clt Born Hbirth
+  refine riscvPowerAdequacy (hlc := hlc) (GF := GF) XV6_DISK_BYTES bootImage g CT Cls Clt Born Hbirth
     (fun γd γsw γreg γst c => xv6Slot N appFs appOkc cov sb.sbLogstart γd γsw γreg γst c)
     (xv6Slot_alloc N appFs appOkc Cls (diskOf g.m.devs) sb nib cov Himg Happ_init)
     Tk Hk
@@ -373,7 +373,7 @@ theorem xv6PowerAdequacyGen (g : GState) (sb : FsSb) (nib : Nat) (cov : ExtTreeS
     (Hgen0 : g.gen = 0) (Hpow : g.pow = false)
     (Himg : fsBootImageWf (diskOf g.m.devs) XV6_DISK_BYTES sb nib cov)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ phi g2 κs :=
   xv6PowerAdequacyGenU (hlc := hlc) (GF := GF) g sb nib cov CT Cls Clt Born Hbirth N appFs appBoot appOkc Ai
     Tnn Tnn' Tnn'' TnnInit Tk Hk Hfound Ok Hboot_ok Happ_merge Happ_sync_run Happ_boot Happ_init
@@ -485,7 +485,7 @@ theorem xv6PowerAdequacy (US : USER) (g : GState) (sb : FsSb) (nib : Nat)
     (Hgen0 : g.gen = 0) (Hpow : g.pow = false)
     (Himg : fsBootImageWf (diskOf g.m.devs) XV6_DISK_BYTES sb nib cov)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ phi g2 :=
   xv6PowerAdequacyGen (hlc := hlc) (GF := GF) g sb nib cov
     Unit appTrivCls (fun _ => iprop(True)) appTrivBorn
@@ -545,7 +545,7 @@ theorem xv6FsAdequacy (US : USER) (g : GState) (sb : FsSb) (nib : Nat)
     (Hgen0 : g.gen = 0) (Hpow : g.pow = false)
     (Himg : fsBootImageWf (diskOf g.m.devs) XV6_DISK_BYTES sb nib cov)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ xv6TracePure cov sb.sbLogstart g2 :=
   xv6PowerAdequacy (hlc := hlc) (GF := GF) US g sb nib cov (xv6TracePure cov sb.sbLogstart)
     (fun Hinv γgen γstart γreg γd γsw γobs γhist c T g' =>
@@ -564,7 +564,7 @@ on with `fs.img` on its disk. -/
 theorem xv6FsAdequacyImg (US : USER) (g : GState)
     (Hgen0 : g.gen = 0) (Hpow : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ xv6TracePure fsimgCov fsimgSb.sbLogstart g2 :=
   xv6FsAdequacy (hlc := hlc) (GF := GF) US g fsimgSb fsimgNib fsimgCov Hgen0 Hpow
     (fsimgHimg g Hdisk) n κs t2 g2 hsteps
@@ -580,7 +580,7 @@ booted, `fs.img` on its disk. -/
 theorem xv6FsAdequacy_xv6GF {hlc : HasLC} (US : USER) (g : GState)
     (Hgen0 : g.gen = 0) (Hpow : g.pow = false) (Hdisk : diskOf g.m.devs = fsImgDisk)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
-    (hsteps : ([Expr.power], g) -<κs>->ₜₚ^[n] (t2, g2)) :
+    (hsteps : ([Expr.power bootImage], g) -<κs>->ₜₚ^[n] (t2, g2)) :
     (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ xv6TracePure fsimgCov fsimgSb.sbLogstart g2 :=
   letI : MachGpreS hlc xv6GF := xv6GF_machGpreS hlc 0
   xv6FsAdequacyImg (hlc := hlc) (GF := xv6GF) US g Hgen0 Hpow Hdisk n κs t2 g2 hsteps

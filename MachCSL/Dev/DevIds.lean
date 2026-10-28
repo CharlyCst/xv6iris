@@ -32,7 +32,7 @@ inductive DevId where
   deriving DecidableEq, Repr, Inhabited
 
 /-- All devices. -/
-def DevId.all : List DevId := [.uart .uart0, .uart .uart1, .plic, .virtio]
+def DevId.all : List DevId := [.uart .uart0, .uart .uart1, .plic]
 
 /-- A PLIC interrupt source id (`1 ..< 96`). -/
 abbrev IrqSrc := Nat

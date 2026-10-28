@@ -67,6 +67,17 @@ theorem devWrite_some {ds : DevStates} {pa : PAddr} {d : DevId} {off n : Nat} {w
     devWrite ds pa n w = some (ds.set d s') := by
   simp [devWrite, hdec, hwr]
 
+theorem devDiskInert_of_devDecode {pa : PAddr} {d : DevId} {off : Nat}
+    (hdec : devDecode pa = some (d, off)) : DevDiskInert d := by
+  dsimp only [devDecode] at hdec
+  split at hdec
+  · injection hdec with hdec; obtain ⟨rfl, _⟩ := Prod.mk.inj hdec; infer_instance
+  · split at hdec
+    · injection hdec with hdec; obtain ⟨rfl, _⟩ := Prod.mk.inj hdec; infer_instance
+    · split at hdec
+      · injection hdec with hdec; obtain ⟨rfl, _⟩ := Prod.mk.inj hdec; infer_instance
+      · cases hdec
+
 theorem not_ramBytes_of_devBytes {pa : PAddr} {n : Nat} (hd : devBytes pa n) (hn : 0 < n) :
     ¬ ramBytes pa n := fun hr => not_devBytes_of_ramBytes hr hn hd
 
@@ -110,6 +121,7 @@ theorem swp_sail_mem_read_dev (cpu : CPU) {n vasize : Nat}
       exact absurd h1 (by decide))
   iintro %σ Hσ
   imod HAU with ⟨%s, Hfrag, %hsome, Hcont⟩
+  haveI : DevDiskInert d := devDiskInert_of_devDecode hdec
   icases machInterp_acc_dev σ d $$ Hσ with ⟨Hauth, Hclose⟩
   ihave %hs := devAgreeAt _ d (σ.devs.st d) s $$ [Hauth Hfrag]
   case' _ => iframe
@@ -159,6 +171,7 @@ theorem swp_sail_mem_write_dev (cpu : CPU) {n vasize : Nat}
   ihave Hσ := Hclose $$ %σ %⟨fun _ _ => rfl, rfl⟩ Hregs Hmem Hmm
   have hnb : ¬ othersReserve σ.resv cpu req.pa n := not_othersReserve_dev hmm hdev
   imod HAU with ⟨%s, Hfrag, %hsome, Hcont⟩
+  haveI : DevDiskInert d := devDiskInert_of_devDecode hdec
   icases machInterp_acc_dev σ d $$ Hσ with ⟨Hauth, Hclose⟩
   ihave %hs := devAgreeAt _ d (σ.devs.st d) s $$ [Hauth Hfrag]
   case' _ => iframe

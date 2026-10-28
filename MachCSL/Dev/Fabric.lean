@@ -131,7 +131,6 @@ def devDecode (pa : PAddr) : Option (DevId × Nat) :=
   if uartBase .uart0 ≤ a ∧ a < uartBase .uart0 + uartSize then some (.uart .uart0, a - uartBase .uart0)
   else if uartBase .uart1 ≤ a ∧ a < uartBase .uart1 + uartSize then some (.uart .uart1, a - uartBase .uart1)
   else if plicBase ≤ a ∧ a < plicBase + plicSize then some (.plic, a - plicBase)
-  else if Virtio.base ≤ a ∧ a < Virtio.base + Virtio.windowSize then some (.virtio, a - Virtio.base)
   else none
 
 /-- One MMIO read of `n` bytes at `pa`: the value and the successor states. -/
@@ -157,8 +156,7 @@ def virtioIrq : IrqSrc := 1
 
 /-- Which device drives source `src`. -/
 def irqSrcOf (src : IrqSrc) : Option DevId :=
-  if src = virtioIrq then some .virtio
-  else if src = uartIrq .uart0 then some (.uart .uart0)
+  if src = uartIrq .uart0 then some (.uart .uart0)
   else if src = uartIrq .uart1 then some (.uart .uart1)
   else none
 

@@ -389,18 +389,17 @@ def DevId.idx : DevId → Nat
   | .plic => 2
   | .virtio => 3
 
-theorem DevId.all_get? (d : DevId) : DevId.all[d.idx]? = some d := by
+theorem DevId.all_get? (d : DevId) [h : DevDiskInert d] : DevId.all[d.idx]? = some d := by
   cases d with
   | uart i => cases i <;> rfl
   | plic => rfl
-  | virtio => rfl
+  | virtio => exact absurd rfl h.ne
 
 theorem DevId.all_get?_ne {k : Nat} {y : DevId} (hk : DevId.all[k]? = some y) (d : DevId)
     (hne : k ≠ d.idx) : y ≠ d := by
   rintro rfl
   apply hne
-  rcases k with _ | _ | _ | _ | k
-  · simp [DevId.all] at hk; subst hk; rfl
+  rcases k with _ | _ | _ | k
   · simp [DevId.all] at hk; subst hk; rfl
   · simp [DevId.all] at hk; subst hk; rfl
   · simp [DevId.all] at hk; subst hk; rfl
@@ -458,7 +457,7 @@ theorem machInterp_of_devs (σ : MState) (ds : DevStates) :
 
 /-- Extract device `d`'s mirror from the interpretation, with a closing wand
 that accepts the mirror at a new state. -/
-theorem machInterp_acc_dev (σ : MState) (d : DevId) :
+theorem machInterp_acc_dev (σ : MState) (d : DevId) [DevDiskInert d] :
     machInterp (GF := GF) σ ⊢
       devAuth d (σ.devs.st d) ∗
       ∀ (s' : DevSt d), devAuth d s' -∗ machInterp { σ with devs := σ.devs.set d s' } := by

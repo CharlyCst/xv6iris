@@ -135,7 +135,7 @@ def read (p : PlicState) (off : Nat) : Option (BitVec 32 × PlicState) :=
   | none =>
   match claimCtx off with
   | some c => some (claim p c)
-  | none => none
+  | none => some (0#32, p)
 
 /-- One 32-bit MMIO write. -/
 def write (p : PlicState) (off : Nat) (v : BitVec 32) : Option PlicState :=
@@ -153,17 +153,21 @@ def write (p : PlicState) (off : Nat) (v : BitVec 32) : Option PlicState :=
   | none =>
   match claimCtx off with
   | some _ => some (complete p v.toNat)
-  | none => none
+  | none => some p
 
 /-- Recast a bit-vector along a width equation. -/
 def castW {m n : Nat} (h : m = n) (w : BitVec m) : BitVec n := h ▸ w
 
-/-- The window is 32-bit only. -/
+/-- The PLIC registers are 32-bit; non-32-bit accesses return zero / are ignored. -/
 def readN (p : PlicState) (off : Nat) (n : Nat) : Option (BitVec (8 * n) × PlicState) :=
-  if h : n = 4 then (read p off).map fun (w, p') => (castW (by omega : 32 = 8 * n) w, p') else none
+  if h : n = 4 then (read p off).map fun (w, p') => (castW (by omega : 32 = 8 * n) w, p')
+  else if n = 1 ∨ n = 2 ∨ n = 8 then some (0#(8 * n), p)
+  else none
 
 def writeN (p : PlicState) (off : Nat) (n : Nat) (w : BitVec (8 * n)) : Option PlicState :=
-  if h : n = 4 then write p off (castW (by omega : 8 * n = 32) w) else none
+  if h : n = 4 then write p off (castW (by omega : 8 * n = 32) w)
+  else if n = 1 ∨ n = 2 ∨ n = 8 then some p
+  else none
 
 /-- The gateway: latch source `i`'s level into its pending bit, unless it is
 already pending or claimed. -/

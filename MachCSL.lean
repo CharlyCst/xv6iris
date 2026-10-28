@@ -145,7 +145,6 @@ import MachCSL.DmaCtxSplit
 import MachCSL.WireInv
 import MachCSL.WpWire
 import MachCSL.WpDevDmaStepV
-import MachCSL.WpDevDisk
 import MachCSL.WpSmodeTime
 import MachCSL.WpDmaCtx2
 import MachCSL.WpSmodeFrame12b

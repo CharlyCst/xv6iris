@@ -403,7 +403,8 @@ theorem plic_write_ok (p : PlicState) (off : Nat) (v : BitVec 32) (p' : PlicStat
             exact plic_complete_ok p v.toNat hok
           | none =>
             simp only [hcl] at hw
-            exact absurd hw (by simp)
+            cases hw
+            exact hok
 
 /-! ## The PLIC window on the bus and in the kernel map -/
 
@@ -432,7 +433,7 @@ theorem plicDecode (off : Nat) (hlt : off < plicSize) :
   have ht := plicAddr_toNat off hlt
   unfold plicSize at hlt
   unfold devDecode
-  simp only [ht, uartBase, uartSize, plicBase, plicSize, Virtio.base, Virtio.windowSize]
+  simp only [ht, uartBase, uart0Base, uart1Base, uartSize, plicBase, plicSize]
   split
   · exfalso; omega
   · split

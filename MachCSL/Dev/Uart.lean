@@ -120,7 +120,7 @@ def read (u : UartState) (off : Nat) : Option (BitVec 8 × UartState) :=
   else if off = 5 then some (lsr u, u)
   else if off = 6 then some (msr u, u)
   else if off = 7 then some (u.scr, u)
-  else none
+  else some (0#8, u)
 
 /-- One MMIO write of byte register `off`. -/
 def write (u : UartState) (off : Nat) (b : BitVec 8) : Option UartState :=
@@ -149,7 +149,7 @@ def write (u : UartState) (off : Nat) (b : BitVec 8) : Option UartState :=
   else if off = 4 then some { u with mcr := b &&& 0x1f#8 }
   else if off = 7 then some { u with scr := b }
   else if off = 5 ∨ off = 6 then some u   -- LSR and MSR are read-only
-  else none
+  else some u
 
 /-- THE BUS NARROWS a wide access: the port has byte registers only, so an
 `n`-byte access at a register offset is the byte access, zero-extended /

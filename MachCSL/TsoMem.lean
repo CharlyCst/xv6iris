@@ -38,6 +38,7 @@ A port of the Rocq prototype's TSO machine (`RiscvLang.mnode_step`,
   the hart's own last store); `itv ≤ tv` is not an invariant.
 -/
 import LeanRV64D.Defs
+import MachCSL.Platform
 
 namespace MachCSL
 
@@ -50,10 +51,7 @@ open LeanRV64D
 agent per hart (which never authors a store). -/
 abbrev Agent := Nat
 
-/-- Number of harts in the machine. -/
-def NCPU : Nat := 8
-
-/-- Hart identifiers. -/
+/-- Hart identifiers (`NCPU` comes from `MachCSL.Platform`). -/
 abbrev CPU := Fin NCPU
 
 def hartAgent (c : CPU) : Agent := c.val
@@ -91,11 +89,8 @@ The bus decode: the device fabric owns every physical address below
 exist exactly at DRAM addresses (`MachCSL.memRam`), so "this byte has a
 history" is what a memory rule turns into "this access is not MMIO". -/
 
-/-- The platform's DRAM: `[0x80000000, 0x88000000)` (128 MiB, xv6's `PHYSTOP`). -/
-def ramBase : Nat := 0x80000000
-def ramEnd : Nat := 0x88000000
-
-/-- An access of `n` bytes at `pa` lies inside RAM. -/
+/-- An access of `n` bytes at `pa` lies inside RAM (`[ramBase, ramEnd)` from
+`MachCSL.Platform`). -/
 def inRam (pa : PAddr) (n : Nat) : Prop := ramBase ≤ pa.toNat ∧ pa.toNat + n ≤ ramEnd
 
 instance (pa : PAddr) (n : Nat) : Decidable (inRam pa n) := by unfold inRam; infer_instance

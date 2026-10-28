@@ -187,7 +187,8 @@ def midelegWrite (v : BitVec 64) : BitVec 64 :=
   (_get_Minterrupts_STI (Mk_Minterrupts (v &&& plat_mideleg_delegatable_bits))))
   (_get_Minterrupts_SSI (Mk_Minterrupts (v &&& plat_mideleg_delegatable_bits))))
 
-/-- `legalize_menvcfg o v` with `CBIE(v) = 0` and `PMM(v) = 0`. -/
+/-- `legalize_menvcfg o v` with `CBIE(v) = 0` and `PMM(v) = 0` (`Zicbom` and
+`Zicboz` are disabled on the platform, so `CBZE`, `CBCFE`, `CBIE` are read-only 0). -/
 def menvcfgWrite (o v : BitVec 64) : BitVec 64 :=
   (_update_MEnvcfg_PBMTE
   (_update_MEnvcfg_ADUE
@@ -199,8 +200,8 @@ def menvcfgWrite (o v : BitVec 64) : BitVec 64 :=
   (_update_MEnvcfg_SSE
   (_update_MEnvcfg_LPE (_update_MEnvcfg_FIOM o (_get_MEnvcfg_FIOM v)) (_get_MEnvcfg_LPE v))
   (_get_MEnvcfg_SSE v))
-  (_get_MEnvcfg_CBZE v))
-  (_get_MEnvcfg_CBCFE v))
+  0#1)
+  0#1)
   0#2)
   (_get_MEnvcfg_STCE v))
   0#2)
@@ -294,9 +295,9 @@ theorem swp_write_CSR_menvcfg (cpu : CPU) (o v : BitVec 64)
     ⊢ swp cpu (write_CSR 0x30A#12 v) Φ := by
   iintro ⟨#Hhw, Hmenvcfg, HΦ⟩
   swp_run 120
-  unfold menvcfgWrite Mk_MEnvcfg _get_MEnvcfg_CBIE _get_MEnvcfg_PMM
+  unfold menvcfgWrite Mk_MEnvcfg _get_MEnvcfg_PMM
   sail_norm
-  try simp only [hcbie, hpmm]
+  try simp only [hpmm]
   iapply HΦ $$ Hmenvcfg
 
 set_option maxHeartbeats 4000000 in

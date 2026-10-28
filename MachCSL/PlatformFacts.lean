@@ -17,8 +17,8 @@ namespace MachCSL
 open Sail Sail.ConcurrencyInterfaceV1
 open LeanRV64D LeanRV64D.Functions
 
-/-- The RAM region of the platform's PMA table. -/
-def ramRegion : PMA_Region := bootPMA[2]!
+/-- The RAM region of the platform's PMA table (`[0x80000000, 0x88000000)`). -/
+def ramRegion : PMA_Region := bootPMA[4]!
 
 /-- A RAM access matches the RAM PMA region (and no earlier one). -/
 theorem matching_pma_ram (pa : BitVec 64) (n : Nat) (h : inRam pa n) (hn : 0 < n) (hn' : n ≤ 16) :
@@ -37,18 +37,42 @@ theorem matching_pma_ram (pa : BitVec 64) (n : Nat) (h : inRam pa n) (hn : 0 < n
   simp only [Int.ofNat_eq_natCast, Int.ofNat_le]
   rw [if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
     if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
+    if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
+    if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
     if_pos (by refine ⟨?_, ?_, ?_⟩ <;> bv_omega)]
   rfl
 
-/-- The I/O region of the platform's PMA table: `[0x2000000, 0x12000000)`,
-where the CLINT, the PLIC, the UARTs and the virtio window live. -/
-def ioRegion : PMA_Region := bootPMA[1]!
+/-- Shared PMA attributes of all 4 device I/O regions in `bootPMA`. -/
+def ioAttributes : PMA := bootPMA[0]!.attributes
 
-/-- An access inside the I/O region matches it (and not the region before it). -/
-theorem matching_pma_io (pa : BitVec 64) (n : Nat) (h1 : 0x2000000 ≤ pa.toNat) (h2 : pa.toNat + n ≤ 0x12000000)
+/-- The CLINT I/O region of `bootPMA`: `[0x02000000, 0x020c0000)`. -/
+def clintRegion : PMA_Region := bootPMA[0]!
+
+theorem matching_pma_clint (pa : BitVec 64) (n : Nat)
+    (h1 : 0x2000000 ≤ pa.toNat) (h2 : pa.toNat + n ≤ 0x20c0000)
     (hn : 0 < n) (hn' : n ≤ 16) :
-    matching_pma_region bootPMA (physaddr.Physaddr pa) n = some ioRegion := by
-  simp only [matching_pma_region, matching_pma_region_bits_range, bootPMA, ioRegion,
+    matching_pma_region bootPMA (physaddr.Physaddr pa) n = some clintRegion := by
+  simp only [matching_pma_region, matching_pma_region_bits_range, bootPMA, clintRegion,
+    range_subset, zopz0zIzJ_u, zero_extend, bits_of_physaddr, to_bits, get_slice_int,
+    Sail.BitVec.zeroExtend, Sail.BitVec.toNatInt, BitVec.setWidth_eq, Bool.and_eq_true,
+    decide_eq_true_eq]
+  have hslice : BitVec.extractLsb' 0 64 (BitVec.ofInt (0 + 64 + 1) (n : Int)) = BitVec.ofNat 64 n := by
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.extractLsb'_toNat, BitVec.toNat_ofInt, Nat.shiftRight_zero, BitVec.toNat_ofNat]
+    omega
+  rw [hslice]
+  simp only [Int.ofNat_eq_natCast, Int.ofNat_le]
+  rw [if_pos (by refine ⟨?_, ?_, ?_⟩ <;> bv_omega)]
+  rfl
+
+/-- The PLIC I/O region of `bootPMA`: `[0x0c000000, 0x0c400000)`. -/
+def plicRegion : PMA_Region := bootPMA[1]!
+
+theorem matching_pma_plic (pa : BitVec 64) (n : Nat)
+    (h1 : 0xc000000 ≤ pa.toNat) (h2 : pa.toNat + n ≤ 0xc400000)
+    (hn : 0 < n) (hn' : n ≤ 16) :
+    matching_pma_region bootPMA (physaddr.Physaddr pa) n = some plicRegion := by
+  simp only [matching_pma_region, matching_pma_region_bits_range, bootPMA, plicRegion,
     range_subset, zopz0zIzJ_u, zero_extend, bits_of_physaddr, to_bits, get_slice_int,
     Sail.BitVec.zeroExtend, Sail.BitVec.toNatInt, BitVec.setWidth_eq, Bool.and_eq_true,
     decide_eq_true_eq]
@@ -59,6 +83,51 @@ theorem matching_pma_io (pa : BitVec 64) (n : Nat) (h1 : 0x2000000 ≤ pa.toNat)
   rw [hslice]
   simp only [Int.ofNat_eq_natCast, Int.ofNat_le]
   rw [if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
+    if_pos (by refine ⟨?_, ?_, ?_⟩ <;> bv_omega)]
+  rfl
+
+/-- The UART0 I/O region of `bootPMA`: `[0x10000000, 0x10001000)`. -/
+def uart0Region : PMA_Region := bootPMA[2]!
+
+theorem matching_pma_uart0 (pa : BitVec 64) (n : Nat)
+    (h1 : 0x10000000 ≤ pa.toNat) (h2 : pa.toNat + n ≤ 0x10001000)
+    (hn : 0 < n) (hn' : n ≤ 16) :
+    matching_pma_region bootPMA (physaddr.Physaddr pa) n = some uart0Region := by
+  simp only [matching_pma_region, matching_pma_region_bits_range, bootPMA, uart0Region,
+    range_subset, zopz0zIzJ_u, zero_extend, bits_of_physaddr, to_bits, get_slice_int,
+    Sail.BitVec.zeroExtend, Sail.BitVec.toNatInt, BitVec.setWidth_eq, Bool.and_eq_true,
+    decide_eq_true_eq]
+  have hslice : BitVec.extractLsb' 0 64 (BitVec.ofInt (0 + 64 + 1) (n : Int)) = BitVec.ofNat 64 n := by
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.extractLsb'_toNat, BitVec.toNat_ofInt, Nat.shiftRight_zero, BitVec.toNat_ofNat]
+    omega
+  rw [hslice]
+  simp only [Int.ofNat_eq_natCast, Int.ofNat_le]
+  rw [if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
+    if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
+    if_pos (by refine ⟨?_, ?_, ?_⟩ <;> bv_omega)]
+  rfl
+
+/-- The UART1 I/O region of `bootPMA`: `[0x1000a000, 0x1000b000)`. -/
+def uart1Region : PMA_Region := bootPMA[3]!
+
+theorem matching_pma_uart1 (pa : BitVec 64) (n : Nat)
+    (h1 : 0x1000a000 ≤ pa.toNat) (h2 : pa.toNat + n ≤ 0x1000b000)
+    (hn : 0 < n) (hn' : n ≤ 16) :
+    matching_pma_region bootPMA (physaddr.Physaddr pa) n = some uart1Region := by
+  simp only [matching_pma_region, matching_pma_region_bits_range, bootPMA, uart1Region,
+    range_subset, zopz0zIzJ_u, zero_extend, bits_of_physaddr, to_bits, get_slice_int,
+    Sail.BitVec.zeroExtend, Sail.BitVec.toNatInt, BitVec.setWidth_eq, Bool.and_eq_true,
+    decide_eq_true_eq]
+  have hslice : BitVec.extractLsb' 0 64 (BitVec.ofInt (0 + 64 + 1) (n : Int)) = BitVec.ofNat 64 n := by
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.extractLsb'_toNat, BitVec.toNat_ofInt, Nat.shiftRight_zero, BitVec.toNat_ofNat]
+    omega
+  rw [hslice]
+  simp only [Int.ofNat_eq_natCast, Int.ofNat_le]
+  rw [if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
+    if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
+    if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
     if_pos (by refine ⟨?_, ?_, ?_⟩ <;> bv_omega)]
   rfl
 

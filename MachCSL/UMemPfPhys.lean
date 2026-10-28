@@ -140,6 +140,8 @@ theorem ume_matching_pma_ram (pa : BitVec 64) (n : Nat) (h : inRam pa n) (hn : 0
   simp only [Int.ofNat_eq_natCast, Int.ofNat_le]
   rw [if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
     if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
+    if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
+    if_neg (by intro hc; obtain ⟨c1, c2, c3⟩ := hc; bv_omega),
     if_pos (by refine ⟨?_, ?_, ?_⟩ <;> bv_omega)]
   rfl
 

@@ -78,6 +78,38 @@ theorem devDiskInert_of_devDecode {pa : PAddr} {d : DevId} {off : Nat}
       · injection hdec with hdec; obtain ⟨rfl, _⟩ := Prod.mk.inj hdec; infer_instance
       · cases hdec
 
+theorem matching_pma_dev1 {pa : BitVec 64} {d : DevId} {off : Nat}
+    (hdec : devDecode pa = some (d, off)) :
+    ∃ b sz, matching_pma_region bootPMA (physaddr.Physaddr pa) 1 =
+      some { base := b, size := sz, attributes := ioAttributes, include_in_device_tree := false } := by
+  dsimp only [devDecode, uartBase, uart0Base, uart1Base, uartSize, plicBase, plicSize] at hdec
+  split at hdec
+  · rename_i h
+    exact ⟨_, _, matching_pma_uart0 pa 1 h.1 (by omega) (by decide) (by decide)⟩
+  · split at hdec
+    · rename_i _ h
+      exact ⟨_, _, matching_pma_uart1 pa 1 h.1 (by omega) (by decide) (by decide)⟩
+    · split at hdec
+      · rename_i _ _ h
+        exact ⟨_, _, matching_pma_plic pa 1 h.1 (by omega) (by decide) (by decide)⟩
+      · cases hdec
+
+theorem matching_pma_dev4 {pa : BitVec 64} {d : DevId} {off : Nat}
+    (hdec : devDecode pa = some (d, off)) (h4 : pa.toNat % 4 = 0) :
+    ∃ b sz, matching_pma_region bootPMA (physaddr.Physaddr pa) 4 =
+      some { base := b, size := sz, attributes := ioAttributes, include_in_device_tree := false } := by
+  dsimp only [devDecode, uartBase, uart0Base, uart1Base, uartSize, plicBase, plicSize] at hdec
+  split at hdec
+  · rename_i h
+    exact ⟨_, _, matching_pma_uart0 pa 4 h.1 (by omega) (by decide) (by decide)⟩
+  · split at hdec
+    · rename_i _ h
+      exact ⟨_, _, matching_pma_uart1 pa 4 h.1 (by omega) (by decide) (by decide)⟩
+    · split at hdec
+      · rename_i _ _ h
+        exact ⟨_, _, matching_pma_plic pa 4 h.1 (by omega) (by decide) (by decide)⟩
+      · cases hdec
+
 theorem not_ramBytes_of_devBytes {pa : PAddr} {n : Nat} (hd : devBytes pa n) (hn : 0 < n) :
     ¬ ramBytes pa n := fun hr => not_devBytes_of_ramBytes hr hn hd
 
@@ -223,7 +255,7 @@ theorem swp_checked_mem_read_dev1_S (cpu : CPU) (dq : DFrac) (c : MConf) (sie : 
   conf_cases HmConf
   obtain ⟨hpmp, hms, hpmm, hlpe⟩ := hok
   obtain ⟨hSIE, hMPRV, hSXL, hMXR, hTSR, hTVM, hFS, hXS, hVS, hSD, hMPP⟩ := hms
-  have hpma := matching_pma_io pa 1 (by have := hio.2.1; omega) hio.2.2 (by decide) (by decide)
+  obtain ⟨b_pma, sz_pma, hpma⟩ := matching_pma_dev1 hdec
   have hclint := within_clint_io pa 1 hio.2.1
   have halign := is_aligned_paddr_of pa 1 (by decide) (Nat.mod_one _)
   swp_run 60
@@ -260,7 +292,7 @@ theorem swp_checked_mem_write_dev1_S (cpu : CPU) (dq : DFrac) (c : MConf) (sie :
   conf_cases HmConf
   obtain ⟨hpmp, hms, hpmm, hlpe⟩ := hok
   obtain ⟨hSIE, hMPRV, hSXL, hMXR, hTSR, hTVM, hFS, hXS, hVS, hSD, hMPP⟩ := hms
-  have hpma := matching_pma_io pa 1 (by have := hio.2.1; omega) hio.2.2 (by decide) (by decide)
+  obtain ⟨b_pma, sz_pma, hpma⟩ := matching_pma_dev1 hdec
   have hclint := within_clint_io pa 1 hio.2.1
   have halign := is_aligned_paddr_of pa 1 (by decide) (Nat.mod_one _)
   swp_run 60
@@ -390,8 +422,7 @@ theorem execSpecF_sb_dev [CurCtx] (cpu : CPU) (dq : DFrac) (c : MConf) (sie : Bo
   obtain ⟨hpmp, hms, hpmm, hlpe⟩ := hok'
   obtain ⟨hSIE, hMPRV, hSXL, hMXR, hTSR, hTVM, hFS, hXS, hVS, hSD, hMPP⟩ := hms
   have hok' : SConfPhys (GF := GF) c sie := hok.phys
-  have hpma := matching_pma_io (RegMap.get R rs1 + BitVec.signExtend 64 imm) 1 (by have := hio.2.1; omega) hio.2.2
-    (by decide) (by decide)
+  obtain ⟨b_pma, sz_pma, hpma⟩ := matching_pma_dev1 hdec
   have hclint := within_clint_io (RegMap.get R rs1 + BitVec.signExtend 64 imm) 1 hio.2.1
   have halign := is_aligned_paddr_of (RegMap.get R rs1 + BitVec.signExtend 64 imm) 1 (by decide) (Nat.mod_one _)
   conf_cases HmConf

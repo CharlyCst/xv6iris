@@ -2109,9 +2109,9 @@ def hartSupports (merge_var : extension) : Bool :=
   | .Ext_H => false
   | .Ext_Zibi => ((sys_enable_experimental_extensions ()) && (true : Bool))
   | .Ext_Zic64b => true
-  | .Ext_Zicbom => true
+  | .Ext_Zicbom => false
   | .Ext_Zicbop => true
-  | .Ext_Zicboz => true
+  | .Ext_Zicboz => false
   | .Ext_Zicfilp => true
   | .Ext_Zicfiss => true
   | .Ext_Zicntr => true
@@ -2218,7 +2218,7 @@ def hartSupports (merge_var : extension) : Bool :=
   | .Ext_Sv57 => ((true : Bool) && (xlen == 64))
   | .Ext_Svade => true
   | .Ext_Svadu => true
-  | .Ext_Svinval => true
+  | .Ext_Svinval => false
   | .Ext_Svnapot => ((true : Bool) && (xlen == 64))
   | .Ext_Svpbmt => ((true : Bool) && (xlen == 64))
   | .Ext_Svrsw60t59b => true

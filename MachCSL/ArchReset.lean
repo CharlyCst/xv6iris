@@ -35,6 +35,7 @@ is the state no-op Rocq instantiates it at (`plat_hook`).  A regeneration
 that changes the hook breaks that lemma, not a silent copy.
 -/
 import LeanRV64D.Model
+import MachCSL.Platform
 
 namespace MachCSL
 
@@ -54,9 +55,6 @@ so the model's `init_model` is Rocq's `init_model_at "" plat_hook`. -/
 theorem cancel_reservation_eq : Functions.cancel_reservation () = platHook := rfl
 
 /-! ## The boot program -/
-
-/-- virt's reset vector (Rocq `reset_vector`). -/
-def resetVector : BitVec 64 := 0x80000000#64
 
 /-
 THE BOARD'S WRITES -- AND THIS LIST *IS* THE PLATFORM ASSUMPTION LIST

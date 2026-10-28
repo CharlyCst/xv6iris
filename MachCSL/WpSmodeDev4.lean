@@ -78,7 +78,7 @@ theorem swp_checked_mem_read_dev4_S (cpu : CPU) (dq : DFrac) (c : MConf) (sie : 
   conf_cases HmConf
   obtain ⟨hpmp, hms, hpmm, hlpe⟩ := hok
   obtain ⟨hSIE, hMPRV, hSXL, hMXR, hTSR, hTVM, hFS, hXS, hVS, hSD, hMPP⟩ := hms
-  have hpma := matching_pma_io pa 4 (by have := hio.2.2.1; omega) hio.2.2.2 (by decide) (by decide)
+  obtain ⟨b_pma, sz_pma, hpma⟩ := matching_pma_dev4 hdec hio.2.1
   have hclint := within_clint_io pa 4 hio.2.2.1
   have halign := is_aligned_paddr_of pa 4 (by decide) hio.2.1
   swp_run 60
@@ -115,7 +115,7 @@ theorem swp_checked_mem_write_dev4_S (cpu : CPU) (dq : DFrac) (c : MConf) (sie :
   conf_cases HmConf
   obtain ⟨hpmp, hms, hpmm, hlpe⟩ := hok
   obtain ⟨hSIE, hMPRV, hSXL, hMXR, hTSR, hTVM, hFS, hXS, hVS, hSD, hMPP⟩ := hms
-  have hpma := matching_pma_io pa 4 (by have := hio.2.2.1; omega) hio.2.2.2 (by decide) (by decide)
+  obtain ⟨b_pma, sz_pma, hpma⟩ := matching_pma_dev4 hdec hio.2.1
   have hclint := within_clint_io pa 4 hio.2.2.1
   have halign := is_aligned_paddr_of pa 4 (by decide) hio.2.1
   swp_run 60
@@ -242,8 +242,7 @@ theorem execSpecF_sw_dev [CurCtx] (cpu : CPU) (dq : DFrac) (c : MConf) (sie : Bo
   obtain ⟨hpmp, hms, hpmm, hlpe⟩ := hok'
   obtain ⟨hSIE, hMPRV, hSXL, hMXR, hTSR, hTVM, hFS, hXS, hVS, hSD, hMPP⟩ := hms
   have hok' : SConfPhys (GF := GF) c sie := hok.phys
-  have hpma := matching_pma_io (RegMap.get R rs1 + BitVec.signExtend 64 imm) 4
-    (by have := hio.2.2.1; omega) hio.2.2.2 (by decide) (by decide)
+  obtain ⟨b_pma, sz_pma, hpma⟩ := matching_pma_dev4 hdec hio.2.1
   have hclint := within_clint_io (RegMap.get R rs1 + BitVec.signExtend 64 imm) 4 hio.2.2.1
   have halign := is_aligned_paddr_of (RegMap.get R rs1 + BitVec.signExtend 64 imm) 4 (by decide) hio.2.1
   conf_cases HmConf

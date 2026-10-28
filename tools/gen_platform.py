@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Regenerate MachCSL/Platform.lean: the platform's PMA regions, copied
-verbatim from the generated model's `sail_model_init` (which installs them
-from the configuration file), plus the reset PMP configuration."""
+"""Regenerate MachCSL/Platform.lean: the centralized machine/platform
+configuration (address layout, hart count, reset vector, IRQ numbers, PMA
+regions copied verbatim from the generated model's `sail_model_init`, and
+reset PMP configuration)."""
 src=open('model/Lean_RV64D/LeanRV64D.lean').read().splitlines()
 start=next(i for i,l in enumerate(src) if 'writeReg pma_regions [' in l)
 i=start; block=[]
@@ -23,6 +24,47 @@ namespace MachCSL
 open Sail Sail.ConcurrencyInterfaceV1
 open LeanRV64D LeanRV64D.Functions
 {opens}
+
+/-! ## Centralized Machine & Platform Configuration
+
+Single source of truth for the platform's physical address layout, hart count,
+reset vector, device MMIO windows, interrupt source numbers, PMA table
+(extracted from `sail_model_init` / `model/sail-config-rv64d.json`), and reset
+PMP configuration. -/
+
+/-- Number of harts on the platform (`NCPU = 8`, matching `kernel/param.h`). -/
+def NCPU : Nat := 8
+
+/-- Architectural reset vector (`KERNBASE = 0x8000_0000`). -/
+def resetVector : BitVec 64 := 0x80000000#64
+
+/-- Base physical address of main memory (`KERNBASE = 0x8000_0000`). -/
+def ramBase : Nat := 0x80000000
+
+/-- End physical address of main memory (`PHYSTOP = 0x8800_0000`, 128 MiB). -/
+def ramEnd : Nat := 0x88000000
+
+/-- Upper bound on device MMIO addresses (`devBound = ramBase`). -/
+def devBound : Nat := 0x80000000
+
+/-- CLINT MMIO window `[0x0200_0000, 0x020c_0000)`. -/
+def clintBase : Nat := 0x02000000
+def clintSize : Nat := 0x000c0000
+
+/-- PLIC MMIO window `[0x0c00_0000, 0x0c40_0000)`. -/
+def plicBase : Nat := 0x0c000000
+def plicSize : Nat := 0x00400000
+
+/-- UART0 and UART1 MMIO windows (`[0x1000_0000, 0x1000_1000)` and
+`[0x1000_a000, 0x1000_b000)`, one 4 KiB page each). -/
+def uart0Base : Nat := 0x10000000
+def uart1Base : Nat := 0x1000a000
+def uartSize  : Nat := 0x00001000
+
+/-- PLIC interrupt source numbers (read off the machine's device tree). -/
+def uart0Irq  : Nat := 10
+def uart1Irq  : Nat := 12
+def virtioIrq : Nat := 1
 
 /-- The platform's physical-memory-attribute regions, exactly as the model's
 `sail_model_init` installs them from the configuration file. -/

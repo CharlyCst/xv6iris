@@ -13,6 +13,7 @@ MachCSL devices: the FABRIC -- the one place that knows every device.
   device alone (`devRead`/`devWrite`);
 * the WIRES (`devLevel`): which PLIC source each device drives.
 -/
+import MachCSL.Platform
 import MachCSL.Dev.Uart
 import MachCSL.Dev.Plic
 import MachCSL.Dev.Virtio
@@ -115,14 +116,11 @@ def DevRt.init : DevRt := ⟨[], 1⟩
 /-! ## The bus decode -/
 
 def uartBase : UartId → Nat
-  | .uart0 => 0x10000000
-  | .uart1 => 0x1000a000
-def uartSize : Nat := 8
-def plicBase : Nat := 0xc000000
-def plicSize : Nat := 0x400000
+  | .uart0 => uart0Base
+  | .uart1 => uart1Base
 
-/-- The device fabric owns every bus address below the DRAM bank. -/
-def devBound : Nat := 0x80000000
+/-- The device fabric owns every bus address below the DRAM bank (`devBound`
+from `MachCSL.Platform`). -/
 def devAddr (pa : PAddr) : Bool := decide (pa.toNat < devBound)
 
 /-- Which device answers address `pa`, and at which byte offset of its window. -/
@@ -147,12 +145,11 @@ def devWrite (ds : DevStates) (pa : PAddr) (n : Nat) (w : BitVec (8 * n)) : Opti
 
 /-! ## The wires -/
 
-/-- The PLIC sources the board wires: the disk on 1, the ports on 10 and 12
-(read off the machine's device tree). -/
+/-- The PLIC sources the board wires: the disk on `virtioIrq` (1), the ports on
+`uart0Irq` (10) and `uart1Irq` (12), from `MachCSL.Platform`. -/
 def uartIrq : UartId → IrqSrc
-  | .uart0 => 10
-  | .uart1 => 12
-def virtioIrq : IrqSrc := 1
+  | .uart0 => uart0Irq
+  | .uart1 => uart1Irq
 
 /-- Which device drives source `src`. -/
 def irqSrcOf (src : IrqSrc) : Option DevId :=

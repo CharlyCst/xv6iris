@@ -245,5 +245,7 @@ import MachCSL.UIcacheFence
 import MachCSL.UIcacheFencei
 import MachCSL.URunXSwp
 import MachCSL.UkfWalk
+import MachCSL.URunD
+import MachCSL.URunDSwp
 import MachCSL.BvLemmas
 import MachCSL.OwnAllocSame

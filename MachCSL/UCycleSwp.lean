@@ -357,14 +357,14 @@ theorem swp_ucTick (hT : UcTickFoot D) (s : UWSt) (hm : UcMisa D s) (Φ : Unit �
   unfold uFr
   iframe
 
-/-- The machine step, as the loop sees it: the cycle, then the tick if the
-machine chose one. -/
-theorem wpLoop_ucStep :
+/-- The machine step (raw, without `bndSafe` at the starting boundary): the
+cycle, then the tick if the machine chose one. -/
+theorem wpLoop_ucStep_raw :
     (∀ tick : Bool, ▷ swp cpu (try_step 0 false)
         (fun _ => swp cpu (if tick then tick_clock () else pure ()) (fun _ => wpLoop cpu)))
-    ⊢ wpLoop (GF := GF) cpu := by
+    ⊢ wpLoop_raw (GF := GF) cpu := by
   iintro H
-  iapply wpLoop_restart
+  iapply wpLoop_restart_raw
   iintro %tick
   ispecialize H $$ %tick
   inext
@@ -372,6 +372,14 @@ theorem wpLoop_ucStep :
   unfold riscvStep
   iapply swp_bind
   iexact H
+
+/-- The machine step, as the loop sees it: the cycle, then the tick if the
+machine chose one. -/
+theorem wpLoop_ucStep [BndTriv (hlc := hlc) (GF := GF)] :
+    (∀ tick : Bool, ▷ swp cpu (try_step 0 false)
+        (fun _ => swp cpu (if tick then tick_clock () else pure ()) (fun _ => wpLoop cpu)))
+    ⊢ wpLoop (GF := GF) cpu :=
+  .trans wpLoop_ucStep_raw (wpLoop_of_raw_triv cpu)
 
 theorem uwLand_misa (wr : WaitReason) (s : UWSt) : (uwLand wr s).2.file .misa = s.file .misa := by
   unfold uwLand
@@ -384,7 +392,8 @@ theorem uwLand_misa (wr : WaitReason) (s : UWSt) : (uwLand wr s).2.file .misa = 
 `swp_exec_step_waiting`): the parked cycle (`uwLand`), then the optional
 tick; the next boundary sees a state agreeing with `uwLand` off the clock
 cells. -/
-theorem wpLoop_uwStep (hD : UcFoot D) (hW : UwFoot D) (hT : UcTickFoot D) (s : UWSt) (hm : UcMisa D s)
+theorem wpLoop_uwStep [BndTriv (hlc := hlc) (GF := GF)]
+    (hD : UcFoot D) (hW : UwFoot D) (hT : UcTickFoot D) (s : UWSt) (hm : UcMisa D s)
     (wr : WaitReason) (ib : BitVec 32) (h : s.file .hart_state = .HART_WAITING (wr, ib)) :
     uFr RF BF s ∗ ▷ (∀ s3, ⌜ucClockAgree (uwLand wr s).2 s3⌝ -∗ uFr RF BF s3 -∗ wpLoop cpu)
     ⊢ wpLoop cpu := by

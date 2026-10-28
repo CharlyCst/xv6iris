@@ -358,7 +358,7 @@ def powerBootRes [KernelMap] (Mof : (Nat → BitVec 8) → LogMirror)
 /-- A hart at its cycle boundary, as the power thread forks it. -/
 theorem hartWP_loop (gen : Nat) (cpu : CPU) :
     hartWP (GF := GF) gen cpu (pure ()) =
-      WP (Loop gen cpu) @ Stuckness.NotStuck; ⊤ {{ IrisGS_gen.forkPost Expr GState Obs }} := rfl
+      machWP (hlc := hlc) (GF := GF) (Loop gen cpu) := rfl
 
 theorem registryOk_insert {R : RegMapF EraGS} {n : Nat} (h : registryOk R n) (E : EraGS) :
     registryOk (insert R n E) (n + 1) := by
@@ -489,11 +489,11 @@ theorem wp_power [KernelMap] (img : Mem)
       obsInv ∗ powerBootRes Mof Rb Tn'' E gen σ ⊢@{IProp GF} |={⊤}=>
         ([∗list] cpu ∈ cpus, hartWP gen cpu (pure ())) ∗
         ([∗list] d ∈ DevId.all, devWP gen d rootTask (pure ()))) :
-    crashInv ∗ obsInv ⊢@{IProp GF} WP (Expr.power img) @ Stuckness.NotStuck; ⊤ {{ _v, True }} := by
+    crashInv ∗ obsInv ⊢@{IProp GF} machWP (Expr.power img) := by
   unfold obsInv crashInv
   iintro ⟨#Hcinv, #Hoinv⟩
   iloeb as IH
-  iapply wp_lift_step rfl
+  iapply machWP_lift_step_nobnd (fun _ => bndSafeAt_power)
   iintro %g %ns %obs %obs' %nt Hσ
   rw [stateInterp_eq]
   icases Hσ with ⟨Hσ, Hobsi⟩

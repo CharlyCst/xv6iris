@@ -38,12 +38,13 @@ theorem wpLoop_s_rvc [CurCtx] (cpu : CPU) (c c' : MConf) (tier : KTier) (root : 
   ihave ⟨%mi, %minstret, %mcycle, %mtime, %mip, Hminstret_increment, Hminstret, Hmcycle, Hmtime, Hmip⟩ :=
     clockCells_cases _ $$ Hclock
   ihave ⟨HPC, HnextPC⟩ := pcIs_cases _ _ $$ Hpc
-  iapply wpLoop_restart
-  iintro %tick
+  conf_cases HmConf
+  iapply wpLoop_restart_priv cpu (DFrac.own 1) .Supervisor rfl
+  iframe Hcur_privilege
+  iintro Hcur_privilege %tick
   inext
   unfold riscvStep
   iapply swp_wpHart
-  conf_cases HmConf
   unfold try_step
   swp_run 40
   -- `should_inc_minstret`: `minstretcfg` is read only under `mcountinhibit.IR = 0`

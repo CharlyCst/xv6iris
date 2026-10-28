@@ -48,12 +48,12 @@ import Iris.ProgramLogic.Lifting
 
 namespace MachCSL
 
-open Iris Iris.ProgramLogic Iris.BI Iris.ProofMode Std
+open Iris Iris.ProgramLogic Iris.ProgramLogic.Language.Notation Iris.BI Iris.ProofMode Std
 open Sail Sail.ConcurrencyInterfaceV1
 open Sail.ArchSem (FreeM)
 open LeanRV64D
 
-/-! ## The corpse rule -/
+/-! ## Machine weakest precondition with U-mode boundary condition -/
 
 section dead
 variable {hlc : HasLC} {GF : BundledGFunctors} [MachFixedGS hlc GF]
@@ -66,19 +66,152 @@ theorem eraCur_false {R : RegMapF EraGS} {g : GState} (h : g.pow = false) :
     eraCur (GF := GF) R g = iprop(True) := by
   unfold eraCur; rw [h]
 
+/-- Pure boundary condition at `(e, g)`: when a live hart is at its cycle
+boundary (`e = Loop g.gen cpu`) in U-mode (`privUser = true`), `Bnd cpu g.m`
+holds. -/
+def bndSafeAt (Bnd : CPU → MState → Prop) (e : Expr) (g : GState) : Prop :=
+  ∀ cpu, e = Loop g.gen cpu → g.pow = true →
+    privUser (g.m.regs cpu .cur_privilege) = true →
+    Bnd cpu g.m
+
+/-- Ambient boundary condition using `MachFixedGS.bndPhi`. -/
+abbrev bndSafe (e : Expr) (g : GState) : Prop :=
+  bndSafeAt (MachFixedGS.bndPhi (hlc := hlc) (GF := GF)) e g
+
+theorem bndSafeAt_not_live {Bnd : CPU → MState → Prop} {gen : Nat} {cpu : CPU}
+    {m : SailM Unit} {g : GState} (hnl : ¬ threadLive g gen) :
+    bndSafeAt Bnd (.hart gen cpu m) g := by
+  intro _ heq hpow _
+  cases heq
+  exact absurd ⟨hpow, rfl⟩ hnl
+
+theorem bndSafeAt_hart_ne {Bnd : CPU → MState → Prop} {gen : Nat} {cpu : CPU}
+    {m : SailM Unit} {g : GState} (hne : m ≠ pure ()) :
+    bndSafeAt Bnd (.hart gen cpu m) g := by
+  intro _ heq _ _
+  cases heq
+  exact absurd rfl hne
+
+theorem bndSafeAt_dev {Bnd : CPU → MState → Prop} {gen : Nat} {d : DevId}
+    {tid : Nat} {m : DevProg d} {g : GState} :
+    bndSafeAt Bnd (.dev gen d tid m) g := by
+  intro _ heq; cases heq
+
+theorem bndSafeAt_power {Bnd : CPU → MState → Prop} {rom : Mem} {g : GState} :
+    bndSafeAt Bnd (.power rom) g := by
+  intro _ heq; cases heq
+
+/-- Pre-fixpoint of the postcondition-free machine weakest precondition `machWP`,
+checking both `PrimStep.Reducible` and `bndSafe` at each step. -/
+def machWP.pre (wp : Expr → IProp GF) (e₁ : Expr) : IProp GF :=
+  iprop(∀ (σ₁ : GState) (ns : Nat) (obs obs' : List Obs) (nt : Nat),
+    stateInterp σ₁ ns (obs ++ obs') nt ={⊤,∅}=∗
+    ⌜PrimStep.Reducible (e₁, σ₁) ∧ bndSafe (hlc := hlc) (GF := GF) e₁ σ₁⌝ ∗
+    ▷ ∀ e₂ σ₂ eₜ, ⌜(e₁, σ₁) -<obs>-> (e₂, σ₂, eₜ)⌝ -∗
+      £ 1 ={∅,⊤}=∗
+      stateInterp σ₂ (ns + 1) obs' (nt + eₜ.length) ∗
+      wp e₂ ∗ [∗list] e' ∈ eₜ, wp e')
+
+instance machWP.pre.contractive : OFE.Contractive (machWP.pre (hlc := hlc) (GF := GF)) where
+  distLater_dist := by
+    intro n wp wp' Hwp e₁
+    unfold pre
+    refine BI.forall_ne fun σ₁ => ?_
+    refine BI.forall_ne fun ns => ?_
+    refine BI.forall_ne fun obs => ?_
+    refine BI.forall_ne fun obs' => ?_
+    refine BI.forall_ne fun nt => ?_
+    refine BI.wand_ne.ne .rfl ?_
+    refine BIFUpdate.ne.ne ?_
+    refine BI.sep_ne.ne .rfl ?_
+    refine OFE.Contractive.distLater_dist fun m m_n => ?_
+    refine BI.forall_ne fun e₂ => ?_
+    refine BI.forall_ne fun σ₂ => ?_
+    refine BI.forall_ne fun eₜ => ?_
+    refine BI.wand_ne.ne .rfl ?_
+    refine BI.wand_ne.ne .rfl ?_
+    refine BIFUpdate.ne.ne ?_
+    refine BI.sep_ne.ne .rfl ?_
+    refine BI.sep_ne.ne ?_ ?_
+    · exact Hwp m m_n _
+    · exact BI.BigSepL.bigSepL_dist fun _ => Hwp m m_n _
+
+/-- Postcondition-free machine weakest precondition (`machWP e`), asserting
+safety (`PrimStep.Reducible`) and the boundary predicate `bndSafe` at every
+step of `e` and any threads it forks. -/
+def machWP : Expr → IProp GF :=
+  fixpoint (machWP.pre (hlc := hlc) (GF := GF))
+
+theorem machWP_unfold {e : Expr} :
+    machWP (hlc := hlc) (GF := GF) e ⊣⊢ machWP.pre (machWP (hlc := hlc) (GF := GF)) e :=
+  BI.equiv_iff.1 <| OFE.eq_dist_2 <|
+    fun _n => (fixpoint_unfold (f := (machWP.pre (hlc := hlc) (GF := GF)).toContractiveHom)).dist e
+
+theorem fupd_machWP {e : Expr} :
+    (|={⊤}=> machWP (hlc := hlc) (GF := GF) e) ⊢ machWP e := by
+  rw [machWP_unfold.to_eq]
+  unfold machWP.pre
+  iintro H %σ₁ %ns %obs %obs' %nt Hσ
+  imod H with H
+  iapply H $$ %σ₁ %ns %obs %obs' %nt Hσ
+
+theorem machWP_lift_step {e₁ : Expr} :
+    (∀ σ₁ ns obs obs' nt, stateInterp σ₁ ns (obs ++ obs') nt ={⊤,∅}=∗
+      ⌜PrimStep.Reducible (e₁, σ₁) ∧ bndSafe (hlc := hlc) (GF := GF) e₁ σ₁⌝ ∗
+      ▷ ∀ e₂ σ₂ eₜ, ⌜(e₁, σ₁) -<obs>-> (e₂, σ₂, eₜ)⌝ -∗ £ 1 ={∅,⊤}=∗
+        stateInterp σ₂ (ns + 1) obs' (nt + eₜ.length) ∗
+        machWP e₂ ∗ [∗list] ef ∈ eₜ, machWP ef)
+    ⊢@{IProp GF} machWP e₁ := by
+  rw [(machWP_unfold (e := e₁)).to_eq]
+  exact .rfl
+
+/-- One-step machine WP without checking `bndSafe` at the current step `e₁`,
+whose continuation after one step is the full `machWP`. -/
+def machWP_step (e₁ : Expr) : IProp GF :=
+  iprop(∀ (σ₁ : GState) (ns : Nat) (obs obs' : List Obs) (nt : Nat),
+    stateInterp σ₁ ns (obs ++ obs') nt ={⊤,∅}=∗
+    ⌜PrimStep.Reducible (e₁, σ₁)⌝ ∗
+    ▷ ∀ e₂ σ₂ eₜ, ⌜(e₁, σ₁) -<obs>-> (e₂, σ₂, eₜ)⌝ -∗
+      £ 1 ={∅,⊤}=∗
+      stateInterp σ₂ (ns + 1) obs' (nt + eₜ.length) ∗
+      machWP e₂ ∗ [∗list] e' ∈ eₜ, machWP e')
+
+theorem machWP_of_step {e₁ : Expr}
+    (hbnd : ∀ σ₁, bndSafe (hlc := hlc) (GF := GF) e₁ σ₁) :
+    machWP_step (hlc := hlc) (GF := GF) e₁ ⊢ machWP e₁ := by
+  unfold machWP_step
+  iintro H
+  iapply machWP_lift_step
+  iintro %σ₁ %ns %obs %obs' %nt Hσ
+  imod H $$ %σ₁ %ns %obs %obs' %nt Hσ with ⟨%Hred, H⟩
+  imodintro
+  isplit
+  · ipureintro; exact ⟨Hred, hbnd σ₁⟩
+  iexact H
+
+theorem machWP_lift_step_nobnd {e₁ : Expr}
+    (hbnd : ∀ σ₁, bndSafe (hlc := hlc) (GF := GF) e₁ σ₁) :
+    (∀ σ₁ ns obs obs' nt, stateInterp σ₁ ns (obs ++ obs') nt ={⊤,∅}=∗
+      ⌜PrimStep.Reducible (e₁, σ₁)⌝ ∗
+      ▷ ∀ e₂ σ₂ eₜ, ⌜(e₁, σ₁) -<obs>-> (e₂, σ₂, eₜ)⌝ -∗ £ 1 ={∅,⊤}=∗
+        stateInterp σ₂ (ns + 1) obs' (nt + eₜ.length) ∗
+        machWP e₂ ∗ [∗list] ef ∈ eₜ, machWP ef)
+    ⊢@{IProp GF} machWP e₁ :=
+  machWP_of_step hbnd
+
 /-- The bare WP of a hart expression. -/
 def hartWP (gen : Nat) (cpu : CPU) (m : SailM Unit) : IProp GF :=
-  WP (Expr.hart gen cpu m) @ Stuckness.NotStuck; ⊤ {{ _v, True }}
+  machWP (hlc := hlc) (GF := GF) (Expr.hart gen cpu m)
 
 /-- A dead generation's hart self-loops forever, from the death certificate
 alone: no era resources, any postcondition.  The base rule tails into this
 when it finds its generation has passed; it is why abandoning a generation's
 resources at power loss is sound. -/
 theorem wp_dead (gen : Nat) (cpu : CPU) (m : SailM Unit) :
-    genDead gen ⊢@{IProp GF} WP (Expr.hart gen cpu m) @ Stuckness.NotStuck; ⊤ {{ _v, True }} := by
+    genDead gen ⊢@{IProp GF} machWP (Expr.hart gen cpu m) := by
   iintro #Hdead
   iloeb as IH
-  iapply wp_lift_step rfl
+  iapply machWP_lift_step
   iintro %g %ns %obs %obs' %nt Hσ
   rw [stateInterp_eq]
   icases Hσ with ⟨Hσ, Hobs⟩
@@ -93,7 +226,7 @@ theorem wp_dead (gen : Nat) (cpu : CPU) (m : SailM Unit) :
   iintro Hclose
   isplit
   · ipureintro
-    exact ⟨[], .hart gen cpu m, g, [], primStep_hart_dead hnl⟩
+    exact ⟨⟨[], .hart gen cpu m, g, [], primStep_hart_dead hnl⟩, bndSafeAt_not_live hnl⟩
   inext
   iintro %e₂ %g₂ %eₜ %Hstep _
   obtain ⟨rfl, h⟩ := primStep_hart_inv Hstep
@@ -150,14 +283,22 @@ postcondition: the hart never terminates. -/
 def wpHart (cpu : CPU) (m : SailM Unit) : IProp GF := iprop%
   genCert -∗ hartWP (genId (hlc := hlc) (GF := GF)) cpu m
 
+/-- One-step hart WP without checking `bndSafe` at the current step `m`,
+whose continuation after one step is the full `wpHart`. -/
+def wpHart_raw (cpu : CPU) (m : SailM Unit) : IProp GF := iprop%
+  genCert -∗ machWP_step (Expr.hart (genId (hlc := hlc) (GF := GF)) cpu m)
+
 /-- The paper's `wp CpuLoop`: it is safe to run hart `cpu` from a cycle boundary. -/
 def wpLoop (cpu : CPU) : IProp GF := wpHart (GF := GF) cpu (pure ())
+
+/-- One-step cycle-boundary WP without checking `bndSafe` at the current boundary. -/
+def wpLoop_raw (cpu : CPU) : IProp GF := wpHart_raw (GF := GF) cpu (pure ())
 
 /-- A ghost update before the loop (the WP absorbs the basic update). -/
 theorem wpLoop_bupd (cpu : CPU) : (|==> wpLoop (GF := GF) cpu) ⊢ wpLoop cpu := by
   unfold wpLoop wpHart hartWP
   iintro H #Hcert
-  iapply fupd_wp
+  iapply fupd_machWP
   imod H
   imodintro
   iapply H $$ Hcert
@@ -166,35 +307,93 @@ theorem wpLoop_bupd (cpu : CPU) : (|==> wpLoop (GF := GF) cpu) ⊢ wpLoop cpu :=
 theorem wpLoop_fupd (cpu : CPU) : (|={⊤}=> wpLoop (GF := GF) cpu) ⊢ wpLoop cpu := by
   unfold wpLoop wpHart hartWP
   iintro H #Hcert
-  iapply fupd_wp
+  iapply fupd_machWP
   imod H
   imodintro
   iapply H $$ Hcert
 
+theorem wpLoop_raw_bupd (cpu : CPU) : (|==> wpLoop_raw (GF := GF) cpu) ⊢ wpLoop_raw cpu := by
+  unfold wpLoop_raw wpHart_raw machWP_step
+  iintro H #Hcert %σ₁ %ns %obs %obs' %nt Hσ
+  imod H
+  iapply H $$ Hcert %σ₁ %ns %obs %obs' %nt Hσ
+
+theorem wpLoop_raw_fupd (cpu : CPU) : (|={⊤}=> wpLoop_raw (GF := GF) cpu) ⊢ wpLoop_raw cpu := by
+  unfold wpLoop_raw wpHart_raw machWP_step
+  iintro H #Hcert %σ₁ %ns %obs %obs' %nt Hσ
+  imod H
+  iapply H $$ Hcert %σ₁ %ns %obs %obs' %nt Hσ
+
+/-- Non-consumptively inspect `machInterp g.m` inside `stateInterp g` when the
+ambient generation is live. -/
+theorem stateInterp_peek (g : GState) (ns : Nat) (obs : List Obs) (nt : Nat)
+    (R : IProp GF) (φ : MState → Prop)
+    (hpeek : ∀ σ, machInterp (GF := GF) σ ∗ R ⊢ machInterp σ ∗ R ∗ ⌜φ σ⌝) :
+    genCert ∗ stateInterp g ns obs nt ∗ R ⊢@{IProp GF}
+      stateInterp g ns obs nt ∗ R ∗
+      ⌜threadLive g (genId (hlc := hlc) (GF := GF)) → φ g.m⌝ := by
+  iintro ⟨#Hcert, Hσ, HR⟩
+  ihave #Hparts := genCert_parts $$ Hcert
+  icases Hparts with ⟨_, Hstarted, Hreg⟩
+  rw [stateInterp_eq]
+  icases Hσ with ⟨Hσ, Hobs⟩
+  unfold powerInterp
+  icases Hσ with ⟨Hgen, Hstart, ⟨%Reg, HReg, %Hok, Hcur⟩, Hdisk⟩
+  ihave %Hs' := startAuth_started _ _ $$ Hstart Hstarted
+  by_cases hge : g.gen = genId (hlc := hlc) (GF := GF)
+  · have hpow : g.pow = true := by
+      cases h : g.pow
+      · simp [startCount, h] at Hs'; omega
+      · rfl
+    rw [eraCur_true hpow]
+    icases Hcur with ⟨%E, %HE, Hera⟩
+    ihave %HRg := eraRegistered_lookup _ _ _ $$ HReg Hreg
+    have HRg' : get? Reg g.gen = some (MachGS.era (hlc := hlc) (GF := GF)) := by
+      rw [hge]; exact HRg
+    have hEq : E = MachGS.era (hlc := hlc) (GF := GF) := by
+      rw [HE] at HRg'
+      exact Option.some.inj HRg'
+    subst hEq
+    rw [eraInterp_ambient]
+    icases hpeek g.m $$ [Hera HR] with ⟨Hera, HR, %Hφ⟩
+    · iframe Hera HR
+    iframe HR
+    isplit
+    · iframe Hobs Hgen Hstart Hdisk
+      iexists Reg
+      iframe HReg
+      isplit
+      · ipureintro; exact Hok
+      rw [eraCur_true hpow]
+      iexists (MachGS.era (hlc := hlc) (GF := GF))
+      isplit
+      · ipureintro; exact HRg'
+      rw [eraInterp_ambient]
+      iexact Hera
+    · ipureintro
+      exact fun _ => Hφ
+  · iframe HR
+    isplit
+    · iframe Hobs Hgen Hstart Hdisk
+      iexists Reg
+      iframe HReg Hcur
+      ipureintro; exact Hok
+    · ipureintro
+      exact fun hl => absurd hl.2 hge
+
 /-- **The generic lifting lemma for one hart event, OBSERVED** (NI M2-W1),
-and the single per-hart framing point.  The caller is handed the ambient
-era's interpretation at the machine `g.m` AND the machine's half of the
-history `obsAuth h` -- with what the language knows of them: the history is
-well-formed for `g` and the hart is live in it -- shows that the hart can
-step, and re-establishes the interpretation at every possible successor,
-handing the history back extended by the step's own observations
-(`hartObsM`; only a crossing write of `cur_privilege` has any).  The other
-half of the history lives in the client's trace predicate, so a caller
-extending it is a caller with the client's consent (`swp_writeReg_uexit`/`_uenter`).
-The era bookkeeping is dispatched here. -/
-theorem wpHart_lift_obs (cpu : CPU) (m : SailM Unit) :
+returning `wpHart_raw cpu m` (no `bndSafe` check at the current step). -/
+theorem wpHart_lift_obs_raw (cpu : CPU) (m : SailM Unit) :
     (∀ (g : GState) (h : List Obs), ⌜obsWf h g ∧ threadLive g (genId (hlc := hlc) (GF := GF))⌝ -∗
       machInterp g.m ∗ obsAuth h ={⊤,∅}=∗
       ⌜∃ m' σ', hartStep cpu m g.m m' σ'⌝ ∗
       ▷ ∀ m' σ', ⌜hartStep cpu m g.m m' σ'⌝ -∗ £ 1 ={∅,⊤}=∗
         machInterp σ' ∗ obsAuth (h ++ hartObsM cpu m g.m) ∗ wpHart cpu m')
-    ⊢@{IProp GF} wpHart cpu m := by
-  unfold wpHart hartWP
-  iintro H #Hcert
+    ⊢@{IProp GF} wpHart_raw cpu m := by
+  unfold wpHart_raw wpHart hartWP machWP_step
+  iintro H #Hcert %g %ns %obs %obs' %nt Hσ
   ihave #Hparts := genCert_parts $$ Hcert
   icases Hparts with ⟨Hborn, Hstarted, Hreg⟩
-  iapply wp_lift_step rfl
-  iintro %g %ns %obs %obs' %nt Hσ
   rw [stateInterp_eq]
   icases Hσ with ⟨Hσ, Hobs⟩
   unfold powerInterp
@@ -296,17 +495,33 @@ theorem wpHart_lift_obs (cpu : CPU) (m : SailM Unit) :
       iexact Hdead
     · exact BigSepL.bigSepL_nil_intro
 
+theorem wpHart_of_raw {cpu : CPU} {m : SailM Unit} (hne : m ≠ pure ()) :
+    wpHart_raw (GF := GF) cpu m ⊢ wpHart cpu m := by
+  unfold wpHart wpHart_raw hartWP
+  iintro H #Hcert
+  iapply machWP_of_step (fun _ => bndSafeAt_hart_ne hne)
+  iapply H $$ Hcert
+
+theorem wpHart_lift_obs (cpu : CPU) (m : SailM Unit) (hne : m ≠ pure ()) :
+    (∀ (g : GState) (h : List Obs), ⌜obsWf h g ∧ threadLive g (genId (hlc := hlc) (GF := GF))⌝ -∗
+      machInterp g.m ∗ obsAuth h ={⊤,∅}=∗
+      ⌜∃ m' σ', hartStep cpu m g.m m' σ'⌝ ∗
+      ▷ ∀ m' σ', ⌜hartStep cpu m g.m m' σ'⌝ -∗ £ 1 ={∅,⊤}=∗
+        machInterp σ' ∗ obsAuth (h ++ hartObsM cpu m g.m) ∗ wpHart cpu m')
+    ⊢@{IProp GF} wpHart cpu m :=
+  .trans (wpHart_lift_obs_raw cpu m) (wpHart_of_raw hne)
+
 /-- **The SILENT lifting lemma** (today's `wpHart_lift`, NI M2-W1): for a step
 that emits nothing -- the callback shows `hartObsM cpu m σ = []` at the
 machine it is handed -- the history is framed and the callback never sees
 it.  Every per-event rule but the observed privilege writes is proved from this. -/
-theorem wpHart_lift (cpu : CPU) (m : SailM Unit) :
+theorem wpHart_lift_raw (cpu : CPU) (m : SailM Unit) :
     (∀ σ, machInterp σ ={⊤,∅}=∗
       ⌜hartObsM cpu m σ = [] ∧ ∃ m' σ', hartStep cpu m σ m' σ'⌝ ∗
       ▷ ∀ m' σ', ⌜hartStep cpu m σ m' σ'⌝ -∗ £ 1 ={∅,⊤}=∗ machInterp σ' ∗ wpHart cpu m')
-    ⊢@{IProp GF} wpHart cpu m := by
+    ⊢@{IProp GF} wpHart_raw cpu m := by
   iintro H
-  iapply wpHart_lift_obs
+  iapply wpHart_lift_obs_raw
   iintro %g %h %_ ⟨Hσ, Ha⟩
   imod H $$ %g.m Hσ with ⟨%⟨hsil, Hred⟩, H⟩
   imodintro
@@ -318,6 +533,13 @@ theorem wpHart_lift (cpu : CPU) (m : SailM Unit) :
   imodintro
   rw [hsil, List.append_nil]
   iframe Hσ' Ha Hwp
+
+theorem wpHart_lift (cpu : CPU) (m : SailM Unit) (hne : m ≠ pure ()) :
+    (∀ σ, machInterp σ ={⊤,∅}=∗
+      ⌜hartObsM cpu m σ = [] ∧ ∃ m' σ', hartStep cpu m σ m' σ'⌝ ∗
+      ▷ ∀ m' σ', ⌜hartStep cpu m σ m' σ'⌝ -∗ £ 1 ={∅,⊤}=∗ machInterp σ' ∗ wpHart cpu m')
+    ⊢@{IProp GF} wpHart cpu m :=
+  .trans (wpHart_lift_raw cpu m) (wpHart_of_raw hne)
 
 /-! ## Sub-computation WPs -/
 
@@ -380,13 +602,13 @@ theorem swp_wpHart (cpu : CPU) (m : SailM Unit) :
 
 /-! ## The per-event rules -/
 
-/-- The cycle boundary: to be safe forever it suffices to be safe for the next
-cycle, whichever way the clock-tick choice goes. -/
-theorem wpLoop_restart (cpu : CPU) :
-    (∀ tick : Bool, ▷ wpHart cpu (riscvStep tick)) ⊢@{IProp GF} wpLoop cpu := by
-  unfold wpLoop
+/-- The cycle boundary (raw): to step from the boundary into the next cycle it
+suffices to be safe for the next cycle, whichever way the clock-tick choice goes. -/
+theorem wpLoop_restart_raw (cpu : CPU) :
+    (∀ tick : Bool, ▷ wpHart cpu (riscvStep tick)) ⊢@{IProp GF} wpLoop_raw cpu := by
+  unfold wpLoop_raw
   iintro H
-  iapply wpHart_lift
+  iapply wpHart_lift_raw
   iintro %σ Hσ
   iapply fupd_mask_intro LawfulSet.empty_subset
   iintro Hclose
@@ -400,6 +622,48 @@ theorem wpLoop_restart (cpu : CPU) :
   imodintro
   iframe Hσ
   iexact H
+
+/-- Upgrade `wpLoop_raw cpu` to `wpLoop cpu` using a separation-logic resource `R`
+that non-consumptively establishes `bndPhi cpu σ` whenever `privUser (σ.regs cpu .cur_privilege) = true`. -/
+theorem wpLoop_of_raw (cpu : CPU) (R : IProp GF)
+    (hbnd : ∀ σ, machInterp (GF := GF) σ ∗ R ⊢ machInterp σ ∗ R ∗
+      ⌜privUser (σ.regs cpu .cur_privilege) = true → MachFixedGS.bndPhi (hlc := hlc) (GF := GF) cpu σ⌝) :
+    R ∗ (R -∗ wpLoop_raw cpu) ⊢@{IProp GF} wpLoop cpu := by
+  unfold wpLoop wpHart hartWP wpLoop_raw wpHart_raw machWP_step
+  iintro ⟨HR, Hwand⟩ #Hcert
+  iapply machWP_lift_step
+  iintro %g %ns %obs %obs' %nt Hσ
+  icases stateInterp_peek g ns (obs ++ obs') nt R _ hbnd $$ [$Hcert $Hσ $HR] with ⟨Hσ, HR, %Hlive⟩
+  imod Hwand $$ HR Hcert %g %ns %obs %obs' %nt Hσ with ⟨%Hred, Hcont⟩
+  imodintro
+  isplit
+  · ipureintro
+    refine ⟨Hred, ?_⟩
+    intro cpu' heq hpow hpriv
+    injection heq with hgen hcpu
+    subst hcpu
+    exact Hlive ⟨hpow, hgen.symm⟩ hpriv
+  iexact Hcont
+
+theorem wpLoop_of_raw_triv [BndTriv (hlc := hlc) (GF := GF)] (cpu : CPU) :
+    wpLoop_raw (GF := GF) cpu ⊢ wpLoop cpu := by
+  iintro H
+  iapply wpLoop_of_raw cpu iprop(True)
+  · intro σ
+    iintro ⟨Hσ, _⟩
+    iframe Hσ
+    ipureintro
+    exact ⟨True.intro, fun _ => BndTriv.triv cpu σ⟩
+  isplitr
+  · itrivial
+  iintro _
+  iexact H
+
+/-- The cycle boundary under `[BndTriv]`: to be safe forever it suffices to be
+safe for the next cycle, whichever way the clock-tick choice goes. -/
+theorem wpLoop_restart [BndTriv (hlc := hlc) (GF := GF)] (cpu : CPU) :
+    (∀ tick : Bool, ▷ wpHart cpu (riscvStep tick)) ⊢@{IProp GF} wpLoop cpu :=
+  .trans (wpLoop_restart_raw cpu) (wpLoop_of_raw_triv cpu)
 
 /-- Extract one hart's register interpretation from the state
 interpretation, with a closing wand that accepts an updated register file. -/
@@ -477,6 +741,40 @@ theorem machInterp_acc_read (σ : MState) (cpu : CPU) :
   iapply machInterp_eq_mono (MState.update_self σ cpu)
   iapply Hclose $$ Hregs
 
+/-- Non-consumptively agree a register points-to cell with `machInterp σ`. -/
+theorem machInterp_reg_valid (σ : MState) (cpu : CPU) (r : Register) (dq : DFrac) (v : RegisterType r) :
+    machInterp (GF := GF) σ ∗ r ↦ᵣ[cpu]{dq} v ⊢ machInterp σ ∗ r ↦ᵣ[cpu]{dq} v ∗ ⌜σ.regs cpu r = v⌝ := by
+  iintro ⟨Hσ, Hr⟩
+  icases machInterp_acc_read σ cpu $$ Hσ with ⟨Hregs, Hclose⟩
+  ihave %Hv : ⌜σ.regs cpu r = v⌝ $$ [Hregs Hr]
+  · icases reg_valid cpu (σ.regs cpu) r dq v $$ [$Hregs $Hr] with %_
+    itrivial
+  ihave Hσ := Hclose $$ Hregs
+  iframe Hσ Hr
+  ipureintro
+  exact Hv
+
+/-- The cycle boundary in a privileged mode (`privUser p = false`, i.e. M-mode or S-mode):
+needs no `BndTriv` because `bndSafe` only restricts U-mode boundaries. -/
+theorem wpLoop_restart_priv (cpu : CPU) (dq : DFrac) (p : Privilege) (hp : privUser p = false) :
+    Register.cur_privilege ↦ᵣ[cpu]{dq} p ∗
+      (Register.cur_privilege ↦ᵣ[cpu]{dq} p -∗ ∀ tick : Bool, ▷ wpHart cpu (riscvStep tick))
+    ⊢@{IProp GF} wpLoop cpu := by
+  iintro ⟨Hp, H⟩
+  iapply wpLoop_of_raw cpu (Register.cur_privilege ↦ᵣ[cpu]{dq} p)
+  · intro σ
+    iintro Hσp
+    icases machInterp_reg_valid σ cpu Register.cur_privilege dq p $$ Hσp with ⟨Hσ, Hp, %Heq⟩
+    iframe Hσ Hp
+    ipureintro
+    intro hpriv
+    rw [Heq, hp] at hpriv
+    cases hpriv
+  iframe Hp
+  iintro Hp
+  iapply wpLoop_restart_raw
+  iapply H $$ Hp
+
 /-! ## The generic per-event rules
 
 For an event `o` at the head of the computation, the caller gets the state
@@ -499,7 +797,7 @@ theorem swp_event_step_dep (cpu : CPU) {X : Type} (o : Outcome Register Register
   unfold swp
   iintro H %C %hC Hcont
   rw [hC]
-  iapply wpHart_lift
+  iapply wpHart_lift _ _ (by nofun)
   iintro %σ Hσ
   imod H $$ %σ Hσ with ⟨%⟨hsil, Hred⟩, H⟩
   imodintro
@@ -732,7 +1030,7 @@ theorem swp_event_obs (cpu : CPU) {X : Type} (o : Outcome Register RegisterType)
   unfold swp
   iintro H %C %hC Hcont
   rw [hC]
-  iapply wpHart_lift_obs
+  iapply wpHart_lift_obs _ _ (by nofun)
   iintro %g %h %hf ⟨Hσ, Ha⟩
   imod H $$ %g %h %hf [Hσ Ha] with ⟨%Hred, H⟩
   · iframe Hσ Ha

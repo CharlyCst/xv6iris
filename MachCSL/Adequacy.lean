@@ -93,6 +93,120 @@ record built as a literal over `Hinv` is convertible with this. -/
     MachFixedGS hlc GF :=
   { F with invGS := Hinv }
 
+section mach_adequacy
+variable [MachFixedGS hlc GF]
+
+/-- Threadpool weakest precondition over `machWP`. -/
+abbrev machWptp (es : List Expr) : IProp GF :=
+  iprop([∗list] e ∈ es, machWP e)
+
+theorem machWP_step_lem (e1 : Expr) (σ1 : GState)
+    (ns : Nat) (κ κs : List Obs) (e2 : Expr) (σ2 : GState) (efs : List Expr) (nt : Nat)
+    (Hstep : (e1, σ1) -<κ>-> (e2, σ2, efs)) :
+    ⊢@{IProp GF} stateInterp σ1 ns (κ ++ κs) nt -∗
+      £ 1 -∗
+      machWP e1
+        ={⊤,∅}=∗
+        |={∅}▷=>^[1] |={∅,⊤}=>
+        stateInterp σ2 (ns + 1) κs (nt + efs.length) ∗
+        machWP e2 ∗
+        machWptp efs := by
+  rw [(machWP_unfold (e := e1)).to_eq]
+  unfold machWP.pre
+  iintro Hσ Hcred Hwp
+  imod Hwp $$ %σ1 %ns %κ %κs %nt Hσ with ⟨%_, Hcont⟩
+  imodintro
+  dsimp only [Nat.repeat]
+  iapply step_fupd_intro LawfulSet.empty_subset
+  inext
+  imod Hcont $$ %e2 %σ2 %efs %Hstep Hcred with H
+  imodintro
+  iexact H
+
+theorem machWptp_step (es1 es2 : List Expr)
+    (κ κs : List Obs) (σ1 σ2 : GState) (ns : Nat) (nt : Nat)
+    (Hstep : (es1, σ1) -<κ>->ₜₚ (es2, σ2)) :
+    ⊢@{IProp GF} stateInterp σ1 ns (κ ++ κs) nt -∗
+      £ 1 -∗
+      machWptp es1 -∗
+      ∃ nt', |={⊤,∅}=> |={∅}▷=>^[1] |={∅,⊤}=>
+        stateInterp σ2 (ns + 1) κs (nt + nt') ∗
+        machWptp es2 := by
+  cases Hstep with | @atomic e1' _ _ e2' _ efs H_prim t₁ t₂ =>
+  iintro Hσ Hcred Hwptp
+  iexists efs.length
+  icases BigSepL.bigSepL_append.mp $$ Hwptp with ⟨Hwptp1, Hwptp2⟩
+  icases BigSepL.bigSepL_cons.mp $$ Hwptp2 with ⟨Hwp_e1, Hwptp3⟩
+  imod machWP_step_lem e1' σ1 ns κ κs e2' σ2 efs nt H_prim $$ Hσ Hcred Hwp_e1 with Hstep
+  imodintro
+  iapply step_fupdN_wand $$ Hstep
+  iintro >⟨HSI, Hwp_e2, Hwptp_efs⟩
+  imodintro
+  iframe HSI
+  simp only [List.append_assoc, List.cons_append]
+  iapply BigSepL.bigSepL_append.mpr
+  iframe Hwptp1
+  iapply BigSepL.bigSepL_cons.mpr
+  iframe Hwp_e2
+  iapply BigSepL.bigSepL_append.mpr
+  iframe Hwptp3 Hwptp_efs
+
+theorem machWP_safe_bnd (κs : List Obs) (nt : Nat) (e : Expr) (σ : GState) (ns : Nat) :
+    ⊢@{IProp GF} stateInterp σ ns κs nt -∗
+      machWP e ={⊤,∅}=∗ ⌜Reducible (e, σ) ∧ bndSafe (hlc := hlc) (GF := GF) e σ⌝ := by
+  rw [(machWP_unfold (e := e)).to_eq]
+  unfold machWP.pre
+  iintro Hst Hcont
+  ispecialize Hcont $$ %σ %ns %([]) %κs %nt
+  rw [List.nil_append]
+  imod Hcont $$ Hst with ⟨%H, _⟩
+  imodintro
+  ipureintro
+  exact H
+
+theorem machWptp_preservation (n : Nat) (es1 es2 : List Expr)
+    (κs κs' : List Obs) (σ1 σ2 : GState) (ns : Nat) (nt : Nat)
+    (Hsteps : (es1, σ1) -<κs>->ₜₚ^[n] (es2, σ2)) :
+    ⊢@{IProp GF} stateInterp σ1 ns (κs ++ κs') nt -∗
+      £ (steps_sum (fun _ => 0) ns n) -∗
+      machWptp es1 ={⊤,∅}=∗
+      |={∅}▷=>^[steps_sum (fun _ => 0) ns n] |={∅,⊤}=> ∃ nt',
+        stateInterp σ2 (n + ns) κs' (nt + nt') ∗
+        machWptp es2 := by
+  generalize hρ1 : (es1, σ1) = ρ1 at Hsteps
+  generalize hρ2 : (es2, σ2) = ρ2 at Hsteps
+  induction Hsteps generalizing nt κs' ns es1 σ1 es2 σ2 with
+  | refl ρ =>
+    cases hρ1; cases hρ2
+    simp only [Nat.zero_add, List.nil_append, steps_sum, Nat.repeat]
+    iintro Hσ _ Hwptp
+    iapply fupd_mask_intro LawfulSet.empty_subset
+    iintro Hcl; imod Hcl; imodintro
+    iexists 0
+    iframe Hσ Hwptp
+  | @cons n_inner ρ1' ρ_mid ρ2' obs obs' hstep hrest ih =>
+    cases hρ1; cases hρ2
+    cases ρ_mid with | mk e_mid σ_mid =>
+    rw [List.append_assoc obs obs' κs']
+    dsimp only [steps_sum]
+    rw [Nat.repeat_add]
+    iintro Hσ ⟨Hcred1, Hcred2⟩ Hwptp
+    icases machWptp_step es1 e_mid obs (obs' ++ κs') σ1 σ_mid ns nt hstep
+            $$ Hσ Hcred1 Hwptp with ⟨%nt'_step, >Hwptp_step⟩
+    imodintro
+    iapply step_fupdN_S_fupd.2
+    iapply step_fupdN_wand $$ Hwptp_step
+    iintro >⟨HSI, Hwptp_mid⟩
+    imod ih _ _ _ _ _ _ _ rfl rfl $$ HSI Hcred2 Hwptp_mid with Hih
+    imodintro
+    iapply step_fupdN_wand $$ Hih
+    iintro >⟨%nt_inner', HSI', Hwptp'⟩
+    iexists (nt'_step + nt_inner')
+    rw [Nat.add_assoc, Nat.add_comm _ 1, ←Nat.add_assoc]
+    iframe HSI' Hwptp'
+
+end mach_adequacy
+
 /-- What the core asks of the client at the record `F` (the body of Rocq's
 `wp_strong_adequacy` premise, as `riscv_power_adequacy`'s proof fills it):
 the record's whole-run trace is the run's, the initial state
@@ -101,46 +215,60 @@ last state of the run, with the machine's half of the history (which is then
 the run's trace) and its well-formedness, a fancy update to `∅` into the pure
 `phi`, so every invariant may be opened and never closed. -/
 def adeqBirth [MachFixedGS hlc GF] (img : Mem) (g : GState) (κs : List Obs)
-    (phi : GState → List Obs → Prop) : IProp GF := iprop%
-  ⌜MachFixedGS.obsTotal (hlc := hlc) (GF := GF) = κs⌝ ∗
+    (phi : GState → List Obs → Prop)
+    (Bnd : CPU → MState → Prop := fun _ _ => True) : IProp GF := iprop%
+  ⌜MachFixedGS.obsTotal (hlc := hlc) (GF := GF) = κs ∧
+    MachFixedGS.bndPhi (hlc := hlc) (GF := GF) = Bnd⌝ ∗
   (powerInterp g ∗ obsInterp g κs) ∗
-  WP (Expr.power img) @ Stuckness.NotStuck; ⊤ {{ _v, True }} ∗
+  machWP (Expr.power img) ∗
   (∀ (g2 : GState) (h : List Obs), powerInterp g2 -∗ obsHalf h -∗ ⌜obsWf h g2⌝ -∗
     |={⊤,∅}=> ⌜phi g2 h⌝)
 
 /-- THE GENERIC CORE of `riscv_power_adequacy`: whatever the fixed record,
-if the client can build it with its birth obligations, the run is safe and
-`phi` holds of its last state and trace.  Independent of the record's fields
-beyond `obsTotal` (see the header, CRASH). -/
+if the client can build it with its birth obligations, the run is safe,
+satisfies `bndSafeAt Bnd` at every thread, and `phi` holds of its last state
+and trace.  Independent of the record's fields beyond `obsTotal` and `bndPhi`
+(see the header, CRASH). -/
 theorem powerAdequacyCore [MachGpreS hlc GF] (img : Mem) (g : GState) (phi : GState → List Obs → Prop)
+    (Bnd : CPU → MState → Prop := fun _ _ => True)
     (Hwp : ∀ [Hinv : InvGS_gen hlc GF] (κs : List Obs),
-      ⊢@{IProp GF} |={⊤}=> ∃ F : MachFixedGS hlc GF, @adeqBirth hlc GF (F.withInv Hinv) img g κs phi)
+      ⊢@{IProp GF} |={⊤}=> ∃ F : MachFixedGS hlc GF, @adeqBirth hlc GF (F.withInv Hinv) img g κs phi Bnd)
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
     (hsteps : ([Expr.power img], g) -<κs>->ₜₚ^[n] (t2, g2)) :
-    (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ phi g2 κs := by
-  suffices h : (∀ e2, e2 ∈ t2 → NotStuck (Val := Val) (e2, g2)) ∧ phi g2 κs by
-    refine ⟨fun e2 he => ?_, h.2⟩
-    rcases h.1 e2 he with hv | hr
-    · exact absurd hv (by simp [ToVal.toVal])
-    · exact hr
-  refine wp_strong_adequacy_gen (hlc := hlc) (GF := GF) Stuckness.NotStuck [Expr.power img] g n κs t2 g2
-    _ (fun _ => 0) ?_ hsteps
-  intro Hinv
+    (∀ e2, e2 ∈ t2 → Reducible (e2, g2) ∧ bndSafeAt Bnd e2 g2) ∧ phi g2 κs := by
+  apply pure_soundness (PROP := IProp GF)
+  apply laterN_soundness (n := steps_sum (fun _ => 0) 0 n + 1)
+  rw [(laterN_succ_right _).to_eq]
+  refine Entails.trans ?_ (laterN_mono _ except0_into_later)
+  apply fupd_finally_soundness hlc (steps_sum (fun _ => 0) 0 n) ⊤
+  iintro %Hinv Hf
   have H := @Hwp Hinv κs
   unfold adeqBirth at H
-  imod H with ⟨%F, %htot, HSI, Hwp, Hfin⟩
-  imodintro
-  iexists (fun σ ns κs' nt => @stateInterp GState Obs GF (@instIrisGS hlc GF (F.withInv Hinv)).toStateInterp σ ns κs' nt),
-    [fun _ => iprop(True)], (fun _ => iprop(True)),
-    (@instIrisGS hlc GF (F.withInv Hinv)).stateInterp_mono
-  dsimp only
-  simp only [@stateInterp_eq hlc GF (F.withInv Hinv)]
-  isplitl [HSI]
-  · iexact HSI
-  isplitl [Hwp]
-  · iapply BigSepL2.bigSepL2_singleton
-    iexact Hwp
-  iintro %es' %t2' %Heq %Hlen %Hns ⟨Hpi, Hoi⟩ _ _
+  imod H with ⟨%F, %⟨htot, hbnd⟩, HSI, Hwp0, Hfin⟩
+  letI : MachFixedGS hlc GF := F.withInv Hinv
+  imod machWptp_preservation (κs' := []) (ns := 0) (nt := 0) (Hsteps := hsteps)
+    $$ [HSI] Hf [Hwp0] with H
+  · simp only [List.append_nil, stateInterp_eq]; iexact HSI
+  · iapply BigSepL.bigSepL_singleton.mpr; iexact Hwp0
+  rw [Nat.add_zero]
+  iapply step_fupdN_fupd_finally
+  iapply step_fupdN_wand $$ H
+  iintro >⟨%nt', Hσ, Ht⟩
+  iapply fupd_finally_keep iprop(⌜∀ e2, e2 ∈ t2 → Reducible (e2, g2) ∧ bndSafeAt Bnd e2 g2⌝)
+  isplit
+  · iintro %e %Hin
+    obtain ⟨i, He⟩ := List.getElem?_of_mem Hin
+    icases BigSepL.bigSepL_lookup He $$ Ht with He
+    imod machWP_safe_bnd $$ Hσ He with %Hsafe
+    imodintro
+    ipureintro
+    change MachFixedGS.bndPhi (hlc := hlc) (GF := GF) = Bnd at hbnd
+    unfold bndSafe at Hsafe
+    rw [hbnd] at Hsafe
+    exact Hsafe
+  iintro %Hsafe_all
+  rw [stateInterp_eq]
+  icases Hσ with ⟨Hpi, Hoi⟩
   unfold obsInterp
   icases Hoi with ⟨%h, %htot', %hwf, Ha⟩
   have hh : h = κs := by rw [List.append_nil] at htot'; exact htot'.trans htot
@@ -150,7 +278,7 @@ theorem powerAdequacyCore [MachGpreS hlc GF] (img : Mem) (g : GState) (phi : GSt
   imod Hfin $$ %g2 %h Hpi Hhalf %hwf with %hphi
   imodintro
   ipureintro
-  exact ⟨fun e2 he => Hns e2 trivial he, hphi⟩
+  exact ⟨Hsafe_all, hphi⟩
 
 /-! ## Stage 2: the power adequacy -/
 
@@ -170,7 +298,8 @@ trace predicate `Ptp`, and the application's slots. -/
     (Uf : Option (Nat × Obs) → Obs → Prop)
     (Ucr : Nat → IProp GF) (Ucx : Nat → Obs → IProp GF) (Uco : IProp GF)
     (Ue : Option (Nat × Obs) → Obs → IProp GF) (HUe : ∀ ox e, Persistent (Ue ox e))
-    (Uet : Nat → IProp GF) (Uea : Nat → List GName → IProp GF) (HUea : ∀ k ns, Persistent (Uea k ns)) :
+    (Uet : Nat → IProp GF) (Uea : Nat → List GName → IProp GF) (HUea : ∀ k ns, Persistent (Uea k ns))
+    (Bnd : CPU → MState → Prop := fun _ _ => True) :
     MachFixedGS hlc GF where
   invGS := Hinv
   reg := MachGpreS.reg_pre
@@ -225,6 +354,7 @@ trace predicate `Ptp`, and the application's slots. -/
   syncHook := Hkp
   swapName := γswap
   mirrorG := MachGpreS.mirror_pre
+  bndPhi := Bnd
 
 theorem crashN_obsN : (↑obsN : CoPset) ⊆ ⊤ \ ↑crashN := by
   have hd : (↑obsN : CoPset) ## ↑crashN := ndot_ne_disjoint nroot (by decide)
@@ -357,6 +487,7 @@ theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (img : M
       ▷ Pt γobs c ∗ (γobs ↪VAR{.own (1 : Qp).half} h) ⊢@{IProp GF}
         |==> ◇ (▷ Pt γobs c ∗ (γobs ↪VAR{.own (1 : Qp).half} (h ++ [e]))))
     (phi : GState → List Obs → Prop)
+    (Bnd : CPU → MState → Prop := fun _ _ => True)
     (Hphi : ∀ (Hinv : InvGS_gen hlc GF) (γgen γstart γreg γdisk γswap γobs γhist : GName) (c : CT)
         (T : List Obs) (g' : GState) (h : List Obs),
       @powerInterp hlc GF (bootFixedGS Hinv γgen γstart γreg γdisk ndisk γswap
@@ -364,7 +495,7 @@ theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (img : M
           (Tk c) (Hk c) γobs T (Pt γobs c) γhist
           (Tg c) (HTg c) (HTgt c) (Kc c) (HKc c) (HKct c) (Cres c) (HCrest c)
           (Wd c) (HWd c) (HWdt c) (Rw c) (HRw c) (HRwt c) Uf (Ucr c) (Ucx c) (Uco c)
-          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c)) g' ∗
+          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c) Bnd) g' ∗
         (γobs ↪VAR{.own (1 : Qp).half} h) ∗ ⌜obsWf h g'⌝ ∗
         ▷ Pc γdisk γswap γreg γstart c ∗ ▷ Pt γobs c ⊢@{IProp GF} ◇ ⌜phi g' h⌝)
     (Hgen0 : g.gen = 0) (Hpow : g.pow = false)
@@ -375,7 +506,7 @@ theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (img : M
           γobs T (Pt γobs c) γhist
           (Tg c) (HTg c) (HTgt c) (Kc c) (HKc c) (HKct c) (Cres c) (HCrest c)
           (Wd c) (HWd c) (HWdt c) (Rw c) (HRw c) (HRwt c) Uf (Ucr c) (Ucx c) (Uco c)
-          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c) →
+          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c) Bnd →
       Born γdisk γswap γreg γstart c →
       ∀ (E : EraGS) (gen : Nat) (σ : MState), bootFacts img σ →
         (∃ ds0 : DevStates, σ.devs = ds0.reset) →
@@ -385,8 +516,8 @@ theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (img : M
           ([∗list] d ∈ DevId.all, devWP gen d rootTask (pure ())))
     (n : Nat) (κs : List Obs) (t2 : List Expr) (g2 : GState)
     (hsteps : ([Expr.power img], g) -<κs>->ₜₚ^[n] (t2, g2)) :
-    (∀ e2, e2 ∈ t2 → Reducible (e2, g2)) ∧ phi g2 κs := by
-  refine powerAdequacyCore (hlc := hlc) (GF := GF) img g phi ?_ n κs t2 g2 hsteps
+    (∀ e2, e2 ∈ t2 → Reducible (e2, g2) ∧ bndSafeAt Bnd e2 g2) ∧ phi g2 κs := by
+  refine powerAdequacyCore (hlc := hlc) (GF := GF) img g phi Bnd ?_ n κs t2 g2 hsteps
   intro Hinv T
   -- THE DURABLE DISK, FIRST: its full fragments establish the crash predicate
   imod (diskImgSized_alloc (GF := GF) (diskOf g.m.devs) ndisk) with ⟨%γdisk, Hdauth, Hdfr⟩
@@ -415,10 +546,10 @@ theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (img : M
     γobs T (Pt γobs c) γhist
     (Tg c) (HTg c) (HTgt c) (Kc c) (HKc c) (HKct c) (Cres c) (HCrest c)
           (Wd c) (HWd c) (HWdt c) (Rw c) (HRw c) (HRwt c) Uf (Ucr c) (Ucx c) (Uco c)
-          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c))
+          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c) Bnd)
   unfold adeqBirth
   isplitr
-  · ipureintro; rfl
+  · ipureintro; exact ⟨rfl, rfl⟩
   isplitl [Hgauth Hsauth HRauth HobA HobH Hdauth]
   · isplitl [Hgauth Hsauth HRauth Hdauth]
     · unfold powerInterp genAuth startAuth eraCur diskFixedInterp diskFixedAuth
@@ -444,7 +575,7 @@ theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (img : M
           (Tk c) (Hk c) γobs T (Pt γobs c) γhist
       (Tg c) (HTg c) (HTgt c) (Kc c) (HKc c) (HKct c) (Cres c) (HCrest c)
           (Wd c) (HWd c) (HWdt c) (Rw c) (HRw c) (HRwt c) Uf (Ucr c) (Ucx c) (Uco c)
-          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c)).withInv Hinv) _ img
+          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c) Bnd).withInv Hinv) _ img
       Ppure (fun dk => Hproj γdisk γswap γreg γstart c dk)
       Mof (Rb c) (Tn c) (Tn' c) (Tn'' c) (fun E gen dk => Hswap γdisk γswap γreg γstart c hborn E gen dk)
       (fun h on dk hs => Hobs γdisk γobs c h on dk hs)
@@ -456,7 +587,7 @@ theorem riscvPowerAdequacy [MachGpreS hlc GF] [KernelMap] (ndisk : Nat) (img : M
           (Tk c) (Hk c) γobs T (Pt γobs c) γhist
         (Tg c) (HTg c) (HTgt c) (Kc c) (HKc c) (HKct c) (Cres c) (HCrest c)
           (Wd c) (HWd c) (HWdt c) (Rw c) (HRw c) (HRwt c) Uf (Ucr c) (Ucx c) (Uco c)
-          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c)).withInv Hinv)
+          (Ue c) (HUe c) (Uet c) (Uea c) (HUea c) Bnd).withInv Hinv)
         Hinv γgen γstart γreg γdisk γswap γobs γhist c T rfl hborn E gen σ hbf hdv hpp))
     unfold obsInv crashInv
     iframe Hcinv Hoinv

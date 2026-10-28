@@ -107,12 +107,13 @@ theorem wpLoop_m_base (cpu : CPU) (dq : DFrac) (c : MConf) (p' : Privilege)
   ihave ⟨%mi, %minstret, %mcycle, %mtime, %mip, Hminstret_increment, Hminstret, Hmcycle, Hmtime, Hmip⟩ :=
     clockCells_cases _ $$ Hclock
   ihave ⟨HPC, HnextPC⟩ := pcIs_cases _ _ $$ Hpc
-  iapply wpLoop_restart
-  iintro %tick
+  mconf_cases HmConf
+  iapply wpLoop_restart_priv cpu dq .Machine rfl
+  iframe Hcur_privilege
+  iintro Hcur_privilege %tick
   inext
   unfold riscvStep
   iapply swp_wpHart
-  mconf_cases HmConf
   unfold try_step
   swp_run 40
   -- `should_inc_minstret`: `minstretcfg` is read only under `mcountinhibit.IR = 0`
@@ -169,12 +170,13 @@ theorem wpLoop_m_rvc (cpu : CPU) (dq : DFrac) (c : MConf) (p' : Privilege)
   ihave ⟨%mi, %minstret, %mcycle, %mtime, %mip, Hminstret_increment, Hminstret, Hmcycle, Hmtime, Hmip⟩ :=
     clockCells_cases _ $$ Hclock
   ihave ⟨HPC, HnextPC⟩ := pcIs_cases _ _ $$ Hpc
-  iapply wpLoop_restart
-  iintro %tick
+  mconf_cases HmConf
+  iapply wpLoop_restart_priv cpu dq .Machine rfl
+  iframe Hcur_privilege
+  iintro Hcur_privilege %tick
   inext
   unfold riscvStep
   iapply swp_wpHart
-  mconf_cases HmConf
   unfold try_step
   swp_run 40
   -- `should_inc_minstret`: `minstretcfg` is read only under `mcountinhibit.IR = 0`

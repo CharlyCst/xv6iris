@@ -381,6 +381,13 @@ class MachFixedGS (hlc : outParam HasLC) (GF : BundledGFunctors) where
   instance of `GhostVarG GF LogMirror`; the NAME is per-era
   (`EraGS.mirrorName`). -/
   mirrorG : GhostVarG GF LogMirror
+  /-- Client boundary predicate checked when a live hart is at its cycle
+  boundary (`Loop g.gen cpu`) in U-mode (`privUser = true`). -/
+  bndPhi : CPU → MState → Prop := fun _ _ => True
+
+/-- Typeclass witnessing that `MachFixedGS.bndPhi` is trivially satisfied. -/
+class BndTriv {hlc : HasLC} {GF : BundledGFunctors} [MachFixedGS hlc GF] : Prop where
+  triv : ∀ cpu σ, MachFixedGS.bndPhi (hlc := hlc) (GF := GF) cpu σ
 
 attribute [reducible, instance] MachFixedGS.reg
 attribute [reducible, instance] MachFixedGS.memPre

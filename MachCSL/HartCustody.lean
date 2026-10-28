@@ -42,16 +42,16 @@ expression's step, and its yield goes to the continuation. -/
 theorem wp_stateInterp_fupd (e : Expr) (Q : IProp GF) :
     (∀ (g : GState) (ns : Nat) (κs : List Obs) (nt : Nat),
         stateInterp g ns κs nt ={⊤}=∗ stateInterp g ns κs nt ∗ Q) ⊢@{IProp GF}
-      (Q -∗ WP e @ Stuckness.NotStuck; ⊤ {{ _v, True }}) -∗
-      WP e @ Stuckness.NotStuck; ⊤ {{ _v, True }} := by
+      (Q -∗ machWP e) -∗
+      machWP e := by
   iintro Hhook Hk
-  iapply wp_unfold.2
-  simp only [wp.pre, ToVal.toVal]
+  iapply machWP_unfold.2
+  unfold machWP.pre
   iintro %σ %ns %obs %obs' %nt Hσ
   imod Hhook $$ %σ %ns %(obs ++ obs') %nt Hσ with ⟨Hσ, HQ⟩
   ihave Hwp := Hk $$ HQ
-  ihave Hwp := wp_unfold.1 $$ Hwp
-  simp only [wp.pre, ToVal.toVal]
+  ihave Hwp := machWP_unfold.1 $$ Hwp
+  unfold machWP.pre
   iapply Hwp $$ %σ %ns %obs %obs' %nt Hσ
 
 end unfold

@@ -82,7 +82,7 @@ variable {hlc : HasLC} {GF : BundledGFunctors} [MachFixedGS hlc GF]
 
 /-- The bare WP of a device expression. -/
 def devWP (gen : Nat) (d : DevId) (tid : TaskId) (m : DevProg d) : IProp GF :=
-  WP (Expr.dev gen d tid m) @ Stuckness.NotStuck; ⊤ {{ _v, True }}
+  machWP (hlc := hlc) (GF := GF) (Expr.dev gen d tid m)
 
 /-- A dead generation's device task self-loops forever. -/
 theorem wp_dev_dead (gen : Nat) (d : DevId) (tid : TaskId) (m : DevProg d) :
@@ -90,7 +90,7 @@ theorem wp_dev_dead (gen : Nat) (d : DevId) (tid : TaskId) (m : DevProg d) :
   unfold devWP
   iintro #Hdead
   iloeb as IH
-  iapply wp_lift_step rfl
+  iapply machWP_lift_step_nobnd (fun _ => bndSafeAt_dev)
   iintro %g %ns %obs %obs' %nt Hσ
   rw [stateInterp_eq]
   icases Hσ with ⟨Hσ, Hobs⟩
@@ -123,13 +123,13 @@ theorem wp_dev_dead (gen : Nat) (d : DevId) (tid : TaskId) (m : DevProg d) :
 
 /-- The corpse rule, with the WP spelled out. -/
 theorem wp_dev_dead' (gen : Nat) (d : DevId) (tid : TaskId) (m : DevProg d) :
-    genDead gen ⊢@{IProp GF} WP (Expr.dev gen d tid m) @ Stuckness.NotStuck; ⊤ {{ _v, True }} :=
+    genDead gen ⊢@{IProp GF} machWP (Expr.dev gen d tid m) :=
   wp_dev_dead gen d tid m
 
 /-- A device root at its loop boundary, as the power thread forks it. -/
 theorem devWP_loop (gen : Nat) (d : DevId) :
     devWP (GF := GF) gen d rootTask (pure ()) =
-      WP (DevLoop gen d) @ Stuckness.NotStuck; ⊤ {{ IrisGS_gen.forkPost Expr GState Obs }} := rfl
+      machWP (hlc := hlc) (GF := GF) (DevLoop gen d) := rfl
 
 end dead
 
@@ -176,13 +176,13 @@ theorem wpDev_lift_obs_disk (d : DevId) (tid : TaskId) (m : DevProg d) :
       ▷ ∀ obs m' σ' efs, ⌜devStep (genId (hlc := hlc) (GF := GF)) d tid m σ obs m' σ' efs⌝ -∗
         £ 1 ={∅,⊤}=∗ machInterp σ' ∗ obsAuth (h ++ obs) ∗ diskFixedAuth (diskOf σ'.devs) ∗
           startAuth (genId (hlc := hlc) (GF := GF) + 1) ∗ wpDev d tid m' ∗
-          [∗list] ef ∈ efs, WP ef @ Stuckness.NotStuck; ⊤ {{ _v, True }})
+          [∗list] ef ∈ efs, machWP ef)
     ⊢@{IProp GF} wpDev d tid m := by
   unfold wpDev devWP
   iintro H #Hcert
   ihave #Hparts := genCert_parts $$ Hcert
   icases Hparts with ⟨Hborn, Hstarted, Hreg⟩
-  iapply wp_lift_step rfl
+  iapply machWP_lift_step_nobnd (fun _ => bndSafeAt_dev)
   iintro %g %ns %obs %obs' %nt Hσ
   rw [stateInterp_eq]
   icases Hσ with ⟨Hσ, Hobs⟩
@@ -302,7 +302,7 @@ theorem wpDev_lift_obs (d : DevId) [hd : DevDiskInert d] (tid : TaskId) (m : Dev
       ⌜∃ obs m' σ' efs, devStep (genId (hlc := hlc) (GF := GF)) d tid m σ obs m' σ' efs⌝ ∗
       ▷ ∀ obs m' σ' efs, ⌜devStep (genId (hlc := hlc) (GF := GF)) d tid m σ obs m' σ' efs⌝ -∗
         £ 1 ={∅,⊤}=∗ machInterp σ' ∗ obsAuth (h ++ obs) ∗ wpDev d tid m' ∗
-          [∗list] ef ∈ efs, WP ef @ Stuckness.NotStuck; ⊤ {{ _v, True }})
+          [∗list] ef ∈ efs, machWP ef)
     ⊢@{IProp GF} wpDev d tid m := by
   iintro H
   iapply wpDev_lift_obs_disk d tid m
@@ -364,7 +364,7 @@ theorem wpDev_lift (d : DevId) [DevDiskInert d] (hsil : DevSilent d) (tid : Task
       ⌜∃ obs m' σ' efs, devStep (genId (hlc := hlc) (GF := GF)) d tid m σ obs m' σ' efs⌝ ∗
       ▷ ∀ obs m' σ' efs, ⌜devStep (genId (hlc := hlc) (GF := GF)) d tid m σ obs m' σ' efs⌝ -∗
         £ 1 ={∅,⊤}=∗ machInterp σ' ∗ wpDev d tid m' ∗
-          [∗list] ef ∈ efs, WP ef @ Stuckness.NotStuck; ⊤ {{ _v, True }})
+          [∗list] ef ∈ efs, machWP ef)
     ⊢@{IProp GF} wpDev d tid m := by
   iintro H
   iapply wpDev_lift_obs d tid m

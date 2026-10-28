@@ -95,12 +95,13 @@ theorem wpLoop_wait_wfi (cpu : CPU) (p : Privilege)
   iloeb as IH
   ihave ⟨%mi, %minstret, %mcycle, %mtime, %mip, Hminstret_increment, Hminstret, Hmcycle, Hmtime, Hmip⟩ :=
     clockCells_cases _ $$ Hclock
-  iapply wpLoop_restart
-  iintro %tick
+  confhs_cases HmConf
+  iapply wpLoop_restart_priv cpu (DFrac.own 1) p (by rcases hp with rfl | rfl <;> rfl)
+  iframe Hcur_privilege
+  iintro Hcur_privilege %tick
   inext
   unfold riscvStep
   iapply swp_wpHart
-  confhs_cases HmConf
   unfold try_step
   swp_run 40
   -- `should_inc_minstret`: `minstretcfg` is read only under `mcountinhibit.IR = 0`
@@ -173,12 +174,13 @@ theorem wpLoop_s_wfi_cycle [CurCtx] (cpu : CPU) (c : MConf) (tier : KTier) (root
   ihave ⟨%mi, %minstret, %mcycle, %mtime, %mip, Hminstret_increment, Hminstret, Hmcycle, Hmtime, Hmip⟩ :=
     clockCells_cases _ $$ Hclock
   ihave ⟨HPC, HnextPC⟩ := pcIs_cases _ _ $$ Hpc
-  iapply wpLoop_restart
-  iintro %tick
+  conf_cases HmConf
+  iapply wpLoop_restart_priv cpu (DFrac.own 1) .Supervisor rfl
+  iframe Hcur_privilege
+  iintro Hcur_privilege %tick
   inext
   unfold riscvStep
   iapply swp_wpHart
-  conf_cases HmConf
   unfold try_step
   swp_run 40
   -- `should_inc_minstret`: `minstretcfg` is read only under `mcountinhibit.IR = 0`

@@ -83,7 +83,7 @@ theorem wpDev_lift_disk (d : DevId) (hsil : DevSilent d) (tid : TaskId) (m : Dev
       ⌜∃ obs m' σ' efs, devStep (genId (hlc := hlc) (GF := GF)) d tid m σ obs m' σ' efs⌝ ∗
       ▷ ∀ obs m' σ' efs, ⌜devStep (genId (hlc := hlc) (GF := GF)) d tid m σ obs m' σ' efs⌝ -∗
         £ 1 ={∅,⊤}=∗ machInterp σ' ∗ diskLend (diskOf σ'.devs) ∗ wpDev d tid m' ∗
-          [∗list] ef ∈ efs, WP ef @ Stuckness.NotStuck; ⊤ {{ _v, True }})
+          [∗list] ef ∈ efs, machWP ef)
     ⊢@{IProp GF} wpDev d tid m := by
   iintro H
   iapply wpDev_lift_obs_disk d tid m

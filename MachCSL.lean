@@ -221,6 +221,7 @@ import MachCSL.UMemMisRam
 import MachCSL.UMemMisTrv
 import MachCSL.UMemMisVmemR
 import MachCSL.UMemMisVmemW
+import MachCSL.UMemMisExact
 import MachCSL.UMemMisLoad
 import MachCSL.UMemAmoBase
 import MachCSL.UMemAmo

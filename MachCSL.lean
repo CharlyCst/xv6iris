@@ -247,5 +247,6 @@ import MachCSL.URunXSwp
 import MachCSL.UkfWalk
 import MachCSL.URunD
 import MachCSL.URunDSwp
+import MachCSL.UkdWalk
 import MachCSL.BvLemmas
 import MachCSL.OwnAllocSame

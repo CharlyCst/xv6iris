@@ -33,7 +33,7 @@ entry 0 = TOR over all of memory, RWX (`start()` writes entry 0 only). -/
 def startConf (t : BitVec 64) (lf : SLeft) : MConf where
   mstatus := 0xA00000080#64
   mie := 0x220#64
-  mideleg := 0x2222#64
+  mideleg := 0x222#64
   medeleg := 0xb3ff#64
   mepc := mainAddr
   satp := 0#64

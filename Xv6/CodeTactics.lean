@@ -48,13 +48,13 @@ noncomputable def textDecodeWith (dref : (r : Register) → Option (RegisterType
   | some k =>
     if k.width = 4 then
       match runRead dref (Functions.ext_decode (BitVec.ofNat 32 k.enc)) with
-      | some (i, true) =>
+      | some (i, _) =>
         if Functions.isRVC (BitVec.extractLsb' 0 16 (BitVec.ofNat 32 k.enc)) = false ∧ inRam pc 4 ∧
             pc.toNat % 2 = 0 ∧ instrWf i ∧ textRx pc then some (false, i, i) else none
       | _ => none
     else if k.width = 2 then
       match runRead dref (Functions.ext_decode_compressed (BitVec.ofNat 16 k.enc)) with
-      | some (i₀, true) =>
+      | some (i₀, _) =>
         match Functions.execute i₀ with
         | .pure (.ExecuteAs i) =>
           if Functions.isRVC (BitVec.ofNat 16 k.enc) = true ∧ inRam pc 4 ∧ pc.toNat % 2 = 0 ∧
@@ -143,9 +143,9 @@ theorem text_instr (pc : BitVec 64) (rvc : Bool) (i i₀ : instruction)
       rw [if_pos rfl] at hM hS
       simp only [Nat.reduceMul]
       split at hM
-      · rename_i i₁ heqM
+      · rename_i i₁ bM heqM
         split at hS
-        · rename_i i₂ heqS
+        · rename_i i₂ bS heqS
           split at hM
           · rename_i i₃ hex
             split at hS

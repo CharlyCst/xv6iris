@@ -2112,8 +2112,8 @@ def hartSupports (merge_var : extension) : Bool :=
   | .Ext_Zicbom => false
   | .Ext_Zicbop => true
   | .Ext_Zicboz => false
-  | .Ext_Zicfilp => true
-  | .Ext_Zicfiss => true
+  | .Ext_Zicfilp => false
+  | .Ext_Zicfiss => false
   | .Ext_Zicntr => true
   | .Ext_Zicond => true
   | .Ext_Zicsr => true
@@ -2160,7 +2160,7 @@ def hartSupports (merge_var : extension) : Bool :=
   | .Ext_Zknd => true
   | .Ext_Zkne => true
   | .Ext_Zknh => true
-  | .Ext_Zkr => true
+  | .Ext_Zkr => false
   | .Ext_Zksed => true
   | .Ext_Zksh => true
   | .Ext_Zkt => true
@@ -2203,10 +2203,10 @@ def hartSupports (merge_var : extension) : Bool :=
   | .Ext_Zvksc => ((hartSupports Ext_Zvks) && (hartSupports Ext_Zvbc))
   | .Ext_Zvksg => ((hartSupports Ext_Zvks) && (hartSupports Ext_Zvkg))
   | .Ext_Ssccptr => true
-  | .Ext_Sscofpmf => true
+  | .Ext_Sscofpmf => false
   | .Ext_Sscounterenw => true
-  | .Ext_Ssnpm => ((true : Bool) && (xlen == 64))
-  | .Ext_Ssstateen => true
+  | .Ext_Ssnpm => ((false : Bool) && (xlen == 64))
+  | .Ext_Ssstateen => false
   | .Ext_Sstc => true
   | .Ext_Sstvala => true
   | .Ext_Sstvecd => (hartSupports Ext_S)
@@ -2223,11 +2223,11 @@ def hartSupports (merge_var : extension) : Bool :=
   | .Ext_Svpbmt => ((true : Bool) && (xlen == 64))
   | .Ext_Svrsw60t59b => true
   | .Ext_Svvptc => true
-  | .Ext_Smcntrpmf => true
-  | .Ext_Smmpm => ((true : Bool) && (xlen == 64))
-  | .Ext_Smnpm => ((true : Bool) && (xlen == 64))
-  | .Ext_Smstateen => true
-  | .Ext_Ssqosid => true
+  | .Ext_Smcntrpmf => false
+  | .Ext_Smmpm => ((false : Bool) && (xlen == 64))
+  | .Ext_Smnpm => ((false : Bool) && (xlen == 64))
+  | .Ext_Smstateen => false
+  | .Ext_Ssqosid => false
   | .Ext_Sspm => ((hartSupports Ext_Smnpm) && (hartSupports Ext_S))
   | .Ext_Supm =>
     ((hartSupports Ext_U) && (if ((hartSupports Ext_S) : Bool)
@@ -2560,6 +2560,7 @@ def currentlyEnabled (merge_var : extension) : SailM Bool := do
   | .Ext_Zama16b => (pure (hartSupports Ext_Zama16b))
   | .Ext_Ziccif => (pure (hartSupports Ext_Ziccif))
   | .Ext_Zicclsm => (pure (hartSupports Ext_Zicclsm))
+  | .Ext_Zkr => (pure (hartSupports Ext_Zkr))
   | .Ext_Zkt => (pure (hartSupports Ext_Zkt))
   | .Ext_Zvkt => (pure (hartSupports Ext_Zvkt))
   | .Ext_Zvkn => (pure (hartSupports Ext_Zvkn))

@@ -84,7 +84,7 @@ a5, BGE)`). -/
 theorem echo_main_16 (T : Nat → BitVec 8 → IProp GF) (cpu : CPU) (dq : DFrac)
     (Φ : instruction → IProp GF) :
     utextImg T Echo.code.byte ∗ spikeUCells cpu dq ∗
-      ▷ (spikeUCells cpu dq -∗ Φ (.BTYPE (0x60#13, .Regidx 10#5, .Regidx 15#5, .BGE))) ⊢
+      (spikeUCells cpu dq -∗ Φ (.BTYPE (0x60#13, .Regidx 10#5, .Regidx 15#5, .BGE))) ⊢
     utextWin T 0x16 4 0x06a7d063 ∗ swp cpu (ext_decode (BitVec.ofNat 32 0x06a7d063)) Φ :=
   utext_step_base spikeDrefU Echo.textOk T 0x16 _ _ _ _ rfl cpu _ (spikeUCells_acc cpu dq) Φ
 
@@ -95,7 +95,7 @@ is the fetched word, whose high half is the next instruction's (`c.sdsp` at
 theorem echo_main_0 (T : Nat → BitVec 8 → IProp GF) (cpu : CPU) (dq : DFrac)
     (Φ : instruction → IProp GF) :
     utextImg T Echo.code.byte ∗ spikeUCells cpu dq ∗
-      ▷ (spikeUCells cpu dq -∗ Φ (.C_ADDI16SP 0x3c#6)) ⊢
+      (spikeUCells cpu dq -∗ Φ (.C_ADDI16SP 0x3c#6)) ⊢
     ⌜execute (.C_ADDI16SP 0x3c#6) =
         pure (ExecutionResult.ExecuteAs (.ITYPE (0xfc0#12, .Regidx 2#5, .Regidx 2#5, .ADDI)))⌝ ∗
     utextWin T 0x0 4 0xfc067139 ∗ swp cpu (ext_decode_compressed (BitVec.ofNat 16 0xfc067139)) Φ :=
@@ -106,7 +106,7 @@ window. -/
 theorem echo_main_2 (T : Nat → BitVec 8 → IProp GF) (cpu : CPU) (dq : DFrac)
     (Φ : instruction → IProp GF) :
     utextImg T Echo.code.byte ∗ spikeUCells cpu dq ∗
-      ▷ (spikeUCells cpu dq -∗ Φ (.C_SDSP (0x7#6, .Regidx 1#5))) ⊢
+      (spikeUCells cpu dq -∗ Φ (.C_SDSP (0x7#6, .Regidx 1#5))) ⊢
     ⌜execute (.C_SDSP (0x7#6, .Regidx 1#5)) =
         pure (ExecutionResult.ExecuteAs (.STORE (0x38#12, .Regidx 1#5, .Regidx 2#5, 8)))⌝ ∗
     utextWin T 0x2 2 0xfc06 ∗ swp cpu (ext_decode_compressed (BitVec.ofNat 16 0xfc06)) Φ :=
@@ -117,26 +117,26 @@ DU4's load-offset relocation is about). -/
 theorem echo_main_44 (T : Nat → BitVec 8 → IProp GF) (cpu : CPU) (dq : DFrac)
     (Φ : instruction → IProp GF) :
     utextImg T Echo.code.byte ∗ spikeUCells cpu dq ∗
-      ▷ (spikeUCells cpu dq -∗ Φ (.JAL (0x30e#21, .Regidx 1#5))) ⊢
+      (spikeUCells cpu dq -∗ Φ (.JAL (0x30e#21, .Regidx 1#5))) ⊢
     utextWin T 0x44 4 0x30e000ef ∗ swp cpu (ext_decode (BitVec.ofNat 32 0x30e000ef)) Φ :=
   utext_step_base spikeDrefU Echo.textOk T 0x44 _ _ _ _ rfl cpu _ (spikeUCells_acc cpu dq) Φ
 
 /-! ## The walk is honest
 
-The walk reads the privilege: the same word does NOT evaluate under a map
-that omits a register the decoder reads (so `rfl` above really ran the U-mode
+The walk reads `misa` for compressed instructions: the same halfword does NOT
+evaluate under a map that omits `misa` (so `rfl` above really ran the U-mode
 decode, and an `rfl` on a wrong AST fails). -/
 
-/-- A reference map without `cur_privilege`. -/
-def spikeDrefNoPriv : (r : Register) → Option (RegisterType r)
-  | .misa => some 0x800000000014112D#64
+/-- A reference map without `misa`. -/
+def spikeDrefNoMisa : (r : Register) → Option (RegisterType r)
+  | .cur_privilege => some Privilege.User
   | .menvcfg => some menvcfgS
   | .mseccfg => some 0#64
   | .senvcfg => some 0#64
   | _ => none
 
-theorem echo_main_16_needs_priv :
-    utextDecodeWith spikeDrefNoPriv Echo.tree Echo.code.byte 0x16 = none := by rfl
+theorem echo_main_0_needs_misa :
+    utextDecodeWith spikeDrefNoMisa Echo.tree Echo.code.byte 0x0 = none := by rfl
 
 /-- No instruction starts mid-word. -/
 theorem echo_main_18_none :

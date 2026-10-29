@@ -19,17 +19,15 @@ open LeanRV64D LeanRV64D.Functions
 variable {hlc : HasLC} {GF : BundledGFunctors} [MachGS hlc GF]
 
 /-- `mstatus` after `mret` (from `MPP = S`): `MIE := MPIE`, `MPIE := 1`,
-`MPP := U (00)`, `MPRV := 0`, `MPELP := 0`. -/
+`MPP := U (00)`, `MPRV := 0`. -/
 def mretMstatus (ms : BitVec 64) : BitVec 64 :=
   BitVec.updateSubrange
     (BitVec.updateSubrange
-      (BitVec.updateSubrange
-        (~~~(1#64 <<< 7) &&&
-            (~~~(1#64 <<< 3) &&& ms ||| BitVec.zeroExtend 64 (BitVec.extractLsb' 7 1 ms) <<< 3) |||
-          1#64 <<< 7)
-        12 11 0#2)
-      17 17 0#1)
-    41 41 0#1
+      (~~~(1#64 <<< 7) &&&
+          (~~~(1#64 <<< 3) &&& ms ||| BitVec.zeroExtend 64 (BitVec.extractLsb' 7 1 ms) <<< 3) |||
+        1#64 <<< 7)
+      12 11 0#2)
+    17 17 0#1
 
 theorem mretMstatus_xv6 : mretMstatus 0xA00000800#64 = 0xA00000080#64 := by decide
 

@@ -977,15 +977,15 @@ theorem uinstrIs_of_facts (γt : GName) (m : ElfMem) (pc : Nat) (rvc : Bool) (i 
     isplitr
     · ipureintro; exact hnr
     isplitr
-    · ipureintro; exact ⟨true, hdec⟩
+    · ipureintro; exact hdec
     iapply Xv6.User.utextImg_run (utext γt) m pc 4 _ (fun j hj => by rw [uwin_byte32 w j hj]; exact F.bytes j hj) $$ H
   · simp only [if_true]
-    obtain ⟨hn, hr, hdec, hex⟩ := F.rvc rfl
+    obtain ⟨hn, hr, ⟨b, hdec⟩, hex⟩ := F.rvc rfl
     iexists (BitVec.ofNat 16 w)
     isplitr
     · ipureintro; exact hr
     isplitr
-    · ipureintro; exact ⟨i₀, true, hdec, hex⟩
+    · ipureintro; exact ⟨i₀, b, hdec, hex⟩
     by_cases h4 : pc % 4 = 0
     · simp only [h4, if_true]
       have hn4 : n = 4 := by rw [hn]; simp; omega

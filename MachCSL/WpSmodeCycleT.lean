@@ -120,7 +120,6 @@ theorem wpLoop_sT_base (cpu : CPU) (c c' : MConf) (hok : SConfPhys (GF := GF) c 
   iapply swp_bind
   iapply (hdec _)
   iframe
-  inext
   iintro HmConf
   conf_cases HmConf
   swp_run 40
@@ -188,7 +187,6 @@ theorem wpLoop_sT_rvc (cpu : CPU) (c c' : MConf) (hok : SConfPhys (GF := GF) c f
   iapply swp_bind
   iapply (hdec _)
   iframe
-  inext
   iintro HmConf
   conf_cases HmConf
   swp_run 40

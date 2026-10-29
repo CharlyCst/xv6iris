@@ -275,48 +275,64 @@ theorem sConf_drefS_acc (cpu : CPU) (dq : DFrac) (c : MConf) (hm : c.menvcfg = m
 
 /-- A 32-bit decode fact, from the kernel's evaluation of the walk. -/
 theorem decodes32_bridge (cpu : CPU) (dq : DFrac) (c : MConf) (w : BitVec 32) (ast : instruction)
-    (h : runRead drefM (ext_decode w) = some (ast, true)) :
+    {b : Bool} (h : runRead drefM (ext_decode w) = some (ast, b)) :
     decodes32 (GF := GF) cpu dq c w ast := by
   intro Φ
-  exact swp_runRead cpu drefM (mConf (GF := GF) cpu dq c) (mConf_drefM_acc cpu dq c) (ext_decode w) ast true h Φ
+  iintro ⟨Hc, HΦ⟩
+  iapply (swp_runRead cpu drefM (mConf (GF := GF) cpu dq c) (mConf_drefM_acc cpu dq c) (ext_decode w) ast b h Φ)
+  iframe Hc
+  iapply laterIf_of_later
+  iexact HΦ
 
 /-- A 32-bit decode fact in supervisor mode. -/
 theorem decodes32S_bridge (cpu : CPU) (dq : DFrac) (c : MConf) (hm : c.menvcfg = menvcfgS)
     (w : BitVec 32) (ast : instruction)
-    (h : runRead drefS (ext_decode w) = some (ast, true)) :
+    {b : Bool} (h : runRead drefS (ext_decode w) = some (ast, b)) :
     decodes32P (GF := GF) cpu dq Privilege.Supervisor c w ast := by
   intro Φ
-  exact swp_runRead cpu drefS (confCells (GF := GF) cpu dq Privilege.Supervisor c)
-    (sConf_drefS_acc cpu dq c hm) (ext_decode w) ast true h Φ
+  iintro ⟨Hc, HΦ⟩
+  iapply (swp_runRead cpu drefS (confCells (GF := GF) cpu dq Privilege.Supervisor c)
+    (sConf_drefS_acc cpu dq c hm) (ext_decode w) ast b h Φ)
+  iframe Hc
+  iapply laterIf_of_later
+  iexact HΦ
 
 /-- A 16-bit decode fact in supervisor mode. -/
 theorem decodes16S_bridge (cpu : CPU) (dq : DFrac) (c : MConf) (hm : c.menvcfg = menvcfgS)
     (h₁₆ : BitVec 16) (ast : instruction)
-    (h : runRead drefS (ext_decode_compressed h₁₆) = some (ast, true)) :
+    {b : Bool} (h : runRead drefS (ext_decode_compressed h₁₆) = some (ast, b)) :
     decodes16P (GF := GF) cpu dq Privilege.Supervisor c h₁₆ ast := by
   intro Φ
-  exact swp_runRead cpu drefS (confCells (GF := GF) cpu dq Privilege.Supervisor c)
-    (sConf_drefS_acc cpu dq c hm) (ext_decode_compressed h₁₆) ast true h Φ
+  iintro ⟨Hc, HΦ⟩
+  iapply (swp_runRead cpu drefS (confCells (GF := GF) cpu dq Privilege.Supervisor c)
+    (sConf_drefS_acc cpu dq c hm) (ext_decode_compressed h₁₆) ast b h Φ)
+  iframe Hc
+  iapply laterIf_of_later
+  iexact HΦ
 
 /-- A 16-bit decode fact, from the kernel's evaluation of the walk. -/
 theorem decodes16_bridge (cpu : CPU) (dq : DFrac) (c : MConf) (h₁₆ : BitVec 16) (ast : instruction)
-    (h : runRead drefM (ext_decode_compressed h₁₆) = some (ast, true)) :
+    {b : Bool} (h : runRead drefM (ext_decode_compressed h₁₆) = some (ast, b)) :
     decodes16 (GF := GF) cpu dq c h₁₆ ast := by
   intro Φ
-  exact swp_runRead cpu drefM (mConf (GF := GF) cpu dq c) (mConf_drefM_acc cpu dq c)
-    (ext_decode_compressed h₁₆) ast true h Φ
+  iintro ⟨Hc, HΦ⟩
+  iapply (swp_runRead cpu drefM (mConf (GF := GF) cpu dq c) (mConf_drefM_acc cpu dq c)
+    (ext_decode_compressed h₁₆) ast b h Φ)
+  iframe Hc
+  iapply laterIf_of_later
+  iexact HΦ
 
 /-- A word decodes wherever the kernel runs (both reference maps). -/
-theorem decodesAll32_bridge (w : BitVec 32) (ast : instruction)
-    (hM : runRead drefM (ext_decode w) = some (ast, true))
-    (hS : runRead drefS (ext_decode w) = some (ast, true)) :
+theorem decodesAll32_bridge (w : BitVec 32) (ast : instruction) {bM bS : Bool}
+    (hM : runRead drefM (ext_decode w) = some (ast, bM))
+    (hS : runRead drefS (ext_decode w) = some (ast, bS)) :
     decodesAll32 (GF := GF) w ast :=
   ⟨fun cpu dq c => decodes32_bridge cpu dq c w ast hM,
    fun cpu dq c hm => decodes32S_bridge cpu dq c hm w ast hS⟩
 
-theorem decodesAll16_bridge (h₁₆ : BitVec 16) (ast : instruction)
-    (hM : runRead drefM (ext_decode_compressed h₁₆) = some (ast, true))
-    (hS : runRead drefS (ext_decode_compressed h₁₆) = some (ast, true)) :
+theorem decodesAll16_bridge (h₁₆ : BitVec 16) (ast : instruction) {bM bS : Bool}
+    (hM : runRead drefM (ext_decode_compressed h₁₆) = some (ast, bM))
+    (hS : runRead drefS (ext_decode_compressed h₁₆) = some (ast, bS)) :
     decodesAll16 (GF := GF) h₁₆ ast :=
   ⟨fun cpu dq c => decodes16_bridge cpu dq c h₁₆ ast hM,
    fun cpu dq c hm => decodes16S_bridge cpu dq c hm h₁₆ ast hS⟩

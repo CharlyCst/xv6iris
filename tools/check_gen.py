@@ -208,6 +208,10 @@ def check_model_facts(c):
 
 def check_platform(c):
     c.copy_in("model/Lean_RV64D/LeanRV64D.lean")
+    c.copy_in("model/Lean_RV64D/LeanRV64D/PlatformConfig.lean")
+    c.copy_in("model/Lean_RV64D/LeanRV64D/Vlen.lean")
+    c.copy_in("model/Lean_RV64D/LeanRV64D/Xv6Extras.lean")
+    c.copy_in("model/Lean_RV64D/LeanRV64D/SysRegs.lean")
     os.makedirs(os.path.join(c.work, "MachCSL"), exist_ok=True)
     c.run([c.tool("gen_platform.py")])
     c.regen("platform", ["MachCSL/Platform.lean"])

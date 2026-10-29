@@ -75,7 +75,6 @@ theorem wpLoop_s_rvc [CurCtx] (cpu : CPU) (c c' : MConf) (tier : KTier) (root : 
     iapply swp_bind
     iapply (hdec _)
     iframe
-    inext
     iintro HmConf
     conf_cases HmConf
     swp_run 40

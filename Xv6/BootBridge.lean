@@ -85,7 +85,7 @@ theorem bootKCtx_wf (R : RegMap) (n : Nat) : (bootKCtx R n).wf := by
 
 /-- `start`'s configuration IS the S-mode configuration at the Bare tier. -/
 theorem startConf_sConfOf (t : BitVec 64) (lf : SLeft) :
-    startConf t lf = sConfOf .bare 0#44 0xA00000080#64 0x2222#64 mainAddr (t + 1000000#64) lf := rfl
+    startConf t lf = sConfOf .bare 0#44 0xA00000080#64 0x222#64 mainAddr (t + 1000000#64) lf := rfl
 
 /-- **The configuration `start` leaves is `kConf` at the Bare tier,
 interrupts off** (Rocq `sconf_intro` + `boot_csrs_reset`'s five facts, here
@@ -96,7 +96,7 @@ theorem kConf_boot {hlc : HasLC} {GF : BundledGFunctors} [MachGS hlc GF] (cpu : 
   unfold kConf
   rw [startConf_sConfOf]
   iintro H
-  iexists 0xA00000080#64, 0x2222#64, mainAddr, (t + 1000000#64), lf
+  iexists 0xA00000080#64, 0x222#64, mainAddr, (t + 1000000#64), lf
   isplitl []
   · ipureintro
     exact ⟨by unfold smFacts; decide, by unfold sretFacts; decide, by decide, hlf⟩

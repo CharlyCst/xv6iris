@@ -139,7 +139,6 @@ theorem wpLoop_m_base (cpu : CPU) (dq : DFrac) (c : MConf) (p' : Privilege)
   iapply swp_bind
   iapply (hdec _)
   iframe
-  inext
   iintro HmConf
   mconf_cases HmConf
   swp_run 40
@@ -202,7 +201,6 @@ theorem wpLoop_m_rvc (cpu : CPU) (dq : DFrac) (c : MConf) (p' : Privilege)
   iapply swp_bind
   iapply (hdec _)
   iframe
-  inext
   iintro HmConf
   mconf_cases HmConf
   swp_run 40

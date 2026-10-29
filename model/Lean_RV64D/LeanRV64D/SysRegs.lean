@@ -620,7 +620,7 @@ def _set_Misa_Z (r_ref : (RegisterRef (BitVec 64))) (v : (BitVec 1)) : SailM Uni
 
 def sys_enable_writable_misa : Bool := true
 
-def sys_writable_hpm_counters : (BitVec 32) := 0b11111111111111111111111111111111#32
+def sys_writable_hpm_counters : (BitVec 32) := 0b00000000000000000000000000000000#32
 
 def ext_veto_disable_C (_ : Unit) : Bool :=
   false
@@ -1409,12 +1409,12 @@ def _set_Counteren_TM (r_ref : (RegisterRef (BitVec 32))) (v : (BitVec 1)) : Sai
   let r ← do (reg_deref r_ref)
   writeRegRef r_ref (_update_Counteren_TM r v)
 
-def sys_scounteren_writable_bits : (BitVec 32) := 0b11111111111111111111111111111111#32
+def sys_scounteren_writable_bits : (BitVec 32) := 0b00000000000000000000000000000111#32
 
 def legalize_scounteren (_c : (BitVec 32)) (v : (BitVec 64)) : (BitVec 32) :=
   (Mk_Counteren ((Sail.BitVec.extractLsb v 31 0) &&& sys_scounteren_writable_bits))
 
-def sys_mcounteren_writable_bits : (BitVec 32) := 0b11111111111111111111111111111111#32
+def sys_mcounteren_writable_bits : (BitVec 32) := 0b00000000000000000000000000000111#32
 
 def legalize_mcounteren (_c : (BitVec 32)) (v : (BitVec 64)) : (BitVec 32) :=
   (Mk_Counteren ((Sail.BitVec.extractLsb v 31 0) &&& sys_mcounteren_writable_bits))

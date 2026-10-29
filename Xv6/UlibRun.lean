@@ -76,12 +76,12 @@ immediate shape `instrWf`, a 16-bit compressed encoding. -/
 noncomputable def ulibDecodeEnc (w e : Nat) : Option (Bool × instruction) :=
   if w = 4 then
     match runRead udrefU (Functions.ext_decode (BitVec.ofNat 32 e)) with
-    | some (i, true) =>
+    | some (i, _) =>
       if Functions.isRVC (BitVec.extractLsb' 0 16 (BitVec.ofNat 32 e)) = false ∧ instrWf i then some (false, i) else none
     | _ => none
   else if w = 2 then
     match runRead udrefU (Functions.ext_decode_compressed (BitVec.ofNat 16 e)) with
-    | some (i₀, true) =>
+    | some (i₀, _) =>
       match ulibExpand i₀ with
       | some i => if Functions.isRVC (BitVec.ofNat 16 e) = true ∧ instrWf i ∧ e < 65536 then some (true, i) else none
       | none => none

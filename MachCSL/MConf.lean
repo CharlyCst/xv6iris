@@ -366,13 +366,13 @@ hypothesis. -/
 def decodes32P (cpu : CPU) (dq : DFrac) (p : Privilege) (c : MConf) (w : BitVec 32)
     (ast : instruction) : Prop :=
   ∀ Φ : instruction → IProp GF,
-    confCells cpu dq p c ∗ ▷ (confCells cpu dq p c -∗ Φ ast) ⊢ swp cpu (Functions.ext_decode w) Φ
+    confCells cpu dq p c ∗ (confCells cpu dq p c -∗ Φ ast) ⊢ swp cpu (Functions.ext_decode w) Φ
 
 /-- Decoding a 16-bit (compressed) instruction word at privilege `p`. -/
 def decodes16P (cpu : CPU) (dq : DFrac) (p : Privilege) (c : MConf) (h : BitVec 16)
     (ast : instruction) : Prop :=
   ∀ Φ : instruction → IProp GF,
-    confCells cpu dq p c ∗ ▷ (confCells cpu dq p c -∗ Φ ast) ⊢
+    confCells cpu dq p c ∗ (confCells cpu dq p c -∗ Φ ast) ⊢
       swp cpu (Functions.ext_decode_compressed h) Φ
 
 /-- Decoding in machine mode. -/

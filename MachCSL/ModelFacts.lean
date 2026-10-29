@@ -239,10 +239,10 @@ open AmocasOddRegisterReservedBehavior
 @[sail_facts] theorem hartSupports_Ext_Zicboz : hartSupports extension.Ext_Zicboz = (false) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Zicfilp : hartSupports extension.Ext_Zicfilp = (true) := by
+@[sail_facts] theorem hartSupports_Ext_Zicfilp : hartSupports extension.Ext_Zicfilp = (false) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Zicfiss : hartSupports extension.Ext_Zicfiss = (true) := by
+@[sail_facts] theorem hartSupports_Ext_Zicfiss : hartSupports extension.Ext_Zicfiss = (false) := by
   rw [hartSupports.eq_def] <;> rfl
 
 @[sail_facts] theorem hartSupports_Ext_Zicntr : hartSupports extension.Ext_Zicntr = (true) := by
@@ -377,7 +377,7 @@ open AmocasOddRegisterReservedBehavior
 @[sail_facts] theorem hartSupports_Ext_Zknh : hartSupports extension.Ext_Zknh = (true) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Zkr : hartSupports extension.Ext_Zkr = (true) := by
+@[sail_facts] theorem hartSupports_Ext_Zkr : hartSupports extension.Ext_Zkr = (false) := by
   rw [hartSupports.eq_def] <;> rfl
 
 @[sail_facts] theorem hartSupports_Ext_Zksed : hartSupports extension.Ext_Zksed = (true) := by
@@ -494,16 +494,16 @@ open AmocasOddRegisterReservedBehavior
 @[sail_facts] theorem hartSupports_Ext_Ssccptr : hartSupports extension.Ext_Ssccptr = (true) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Sscofpmf : hartSupports extension.Ext_Sscofpmf = (true) := by
+@[sail_facts] theorem hartSupports_Ext_Sscofpmf : hartSupports extension.Ext_Sscofpmf = (false) := by
   rw [hartSupports.eq_def] <;> rfl
 
 @[sail_facts] theorem hartSupports_Ext_Sscounterenw : hartSupports extension.Ext_Sscounterenw = (true) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Ssnpm : hartSupports extension.Ext_Ssnpm = (((true : Bool) && (xlen == 64))) := by
+@[sail_facts] theorem hartSupports_Ext_Ssnpm : hartSupports extension.Ext_Ssnpm = (((false : Bool) && (xlen == 64))) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Ssstateen : hartSupports extension.Ext_Ssstateen = (true) := by
+@[sail_facts] theorem hartSupports_Ext_Ssstateen : hartSupports extension.Ext_Ssstateen = (false) := by
   rw [hartSupports.eq_def] <;> rfl
 
 @[sail_facts] theorem hartSupports_Ext_Sstc : hartSupports extension.Ext_Sstc = (true) := by
@@ -554,19 +554,19 @@ open AmocasOddRegisterReservedBehavior
 @[sail_facts] theorem hartSupports_Ext_Svvptc : hartSupports extension.Ext_Svvptc = (true) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Smcntrpmf : hartSupports extension.Ext_Smcntrpmf = (true) := by
+@[sail_facts] theorem hartSupports_Ext_Smcntrpmf : hartSupports extension.Ext_Smcntrpmf = (false) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Smmpm : hartSupports extension.Ext_Smmpm = (((true : Bool) && (xlen == 64))) := by
+@[sail_facts] theorem hartSupports_Ext_Smmpm : hartSupports extension.Ext_Smmpm = (((false : Bool) && (xlen == 64))) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Smnpm : hartSupports extension.Ext_Smnpm = (((true : Bool) && (xlen == 64))) := by
+@[sail_facts] theorem hartSupports_Ext_Smnpm : hartSupports extension.Ext_Smnpm = (((false : Bool) && (xlen == 64))) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Smstateen : hartSupports extension.Ext_Smstateen = (true) := by
+@[sail_facts] theorem hartSupports_Ext_Smstateen : hartSupports extension.Ext_Smstateen = (false) := by
   rw [hartSupports.eq_def] <;> rfl
 
-@[sail_facts] theorem hartSupports_Ext_Ssqosid : hartSupports extension.Ext_Ssqosid = (true) := by
+@[sail_facts] theorem hartSupports_Ext_Ssqosid : hartSupports extension.Ext_Ssqosid = (false) := by
   rw [hartSupports.eq_def] <;> rfl
 
 @[sail_facts] theorem hartSupports_Ext_Sspm : hartSupports extension.Ext_Sspm = (((hartSupports Ext_Smnpm) && (hartSupports Ext_S))) := by

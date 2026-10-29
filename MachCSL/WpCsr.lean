@@ -50,8 +50,8 @@ def mstatusWrite (o v : BitVec 64) : BitVec 64 :=
   (_update_Mstatus_TVM
   (_update_Mstatus_TW
   (_update_Mstatus_TSR
-  (_update_Mstatus_SPELP (_update_Mstatus_MPELP o (_get_Mstatus_MPELP v))
-  (_get_Mstatus_SPELP v))
+  (_update_Mstatus_SPELP (_update_Mstatus_MPELP o 0#1)
+  0#1)
   (_get_Mstatus_TSR v))
   (_get_Mstatus_TW v))
   (_get_Mstatus_TVM v))
@@ -85,8 +85,8 @@ def mstatusWrite (o v : BitVec 64) : BitVec 64 :=
   (_update_Mstatus_TVM
   (_update_Mstatus_TW
   (_update_Mstatus_TSR
-  (_update_Mstatus_SPELP (_update_Mstatus_MPELP o (_get_Mstatus_MPELP v))
-  (_get_Mstatus_SPELP v))
+  (_update_Mstatus_SPELP (_update_Mstatus_MPELP o 0#1)
+  0#1)
   (_get_Mstatus_TSR v))
   (_get_Mstatus_TW v))
   (_get_Mstatus_TVM v))
@@ -121,8 +121,8 @@ def mstatusWrite (o v : BitVec 64) : BitVec 64 :=
   (_update_Mstatus_TW
   (_update_Mstatus_TSR
   (_update_Mstatus_SPELP
-  (_update_Mstatus_MPELP o (_get_Mstatus_MPELP v))
-  (_get_Mstatus_SPELP v))
+  (_update_Mstatus_MPELP o 0#1)
+  0#1)
   (_get_Mstatus_TSR v))
   (_get_Mstatus_TW v))
   (_get_Mstatus_TVM v))
@@ -157,8 +157,8 @@ def mstatusWrite (o v : BitVec 64) : BitVec 64 :=
   (_update_Mstatus_TW
   (_update_Mstatus_TSR
   (_update_Mstatus_SPELP
-  (_update_Mstatus_MPELP o (_get_Mstatus_MPELP v))
-  (_get_Mstatus_SPELP v))
+  (_update_Mstatus_MPELP o 0#1)
+  0#1)
   (_get_Mstatus_TSR v))
   (_get_Mstatus_TW v))
   (_get_Mstatus_TVM v))
@@ -182,13 +182,14 @@ def midelegWrite (v : BitVec 64) : BitVec 64 :=
   (_update_Minterrupts_STI
   (_update_Minterrupts_SEI
   (_update_Minterrupts_LCOFI (Mk_Minterrupts (v &&& plat_mideleg_delegatable_bits))
-  (_get_Minterrupts_LCOFI (Mk_Minterrupts (v &&& plat_mideleg_delegatable_bits))))
+  0#1)
   (_get_Minterrupts_SEI (Mk_Minterrupts (v &&& plat_mideleg_delegatable_bits))))
   (_get_Minterrupts_STI (Mk_Minterrupts (v &&& plat_mideleg_delegatable_bits))))
   (_get_Minterrupts_SSI (Mk_Minterrupts (v &&& plat_mideleg_delegatable_bits))))
 
-/-- `legalize_menvcfg o v` with `CBIE(v) = 0` and `PMM(v) = 0` (`Zicbom` and
-`Zicboz` are disabled on the platform, so `CBZE`, `CBCFE`, `CBIE` are read-only 0). -/
+/-- `legalize_menvcfg o v`: `Zicbom`, `Zicboz`, `Zicfilp`, `Zicfiss`, and `Smnpm`
+are disabled on the platform, so `CBZE`, `CBCFE`, `CBIE`, `LPE`, `SSE` are
+read-only 0 and `PMM` preserves `o`'s `PMM` field. -/
 def menvcfgWrite (o v : BitVec 64) : BitVec 64 :=
   (_update_MEnvcfg_PBMTE
   (_update_MEnvcfg_ADUE
@@ -198,13 +199,13 @@ def menvcfgWrite (o v : BitVec 64) : BitVec 64 :=
   (_update_MEnvcfg_CBCFE
   (_update_MEnvcfg_CBZE
   (_update_MEnvcfg_SSE
-  (_update_MEnvcfg_LPE (_update_MEnvcfg_FIOM o (_get_MEnvcfg_FIOM v)) (_get_MEnvcfg_LPE v))
-  (_get_MEnvcfg_SSE v))
+  (_update_MEnvcfg_LPE (_update_MEnvcfg_FIOM o (_get_MEnvcfg_FIOM v)) 0#1)
+  0#1)
   0#1)
   0#1)
   0#2)
   (_get_MEnvcfg_STCE v))
-  0#2)
+  (_get_MEnvcfg_PMM o))
   (_get_MEnvcfg_ADUE v))
   (_get_MEnvcfg_PBMTE v))
 
@@ -438,11 +439,11 @@ macro "csrr_run" hrd:ident h:ident : tactic =>
 theorem mstatusWrite_xv6 : mstatusWrite 0xA00000000#64 0xA00000800#64 = 0xA00000800#64 := by decide
 /-- `w_medeleg(0xffff)`: the delegatable bits. -/
 theorem legalize_medeleg_xv6 : legalize_medeleg 0#64 0xffff#64 = 0xb3ff#64 := by decide
-/-- `w_mideleg(0xffff)`: the supervisor interrupt bits (SSI, STI, SEI, LCOFI). -/
-theorem midelegWrite_xv6 : midelegWrite 0xffff#64 = 0x2222#64 := by decide
+/-- `w_mideleg(0xffff)`: the supervisor interrupt bits (SSI, STI, SEI). -/
+theorem midelegWrite_xv6 : midelegWrite 0xffff#64 = 0x222#64 := by decide
 /-- `w_sie(r_sie() | SIE_SEIE | SIE_STIE)` with `mie = 0`. -/
-theorem legalize_sie_xv6 : legalize_sie 0#64 0x2222#64 0x220#64 = 0x220#64 := by decide
-theorem lower_mie_xv6 : lower_mie 0#64 0x2222#64 = 0#64 := by decide
+theorem legalize_sie_xv6 : legalize_sie 0#64 0x222#64 0x220#64 = 0x220#64 := by decide
+theorem lower_mie_xv6 : lower_mie 0#64 0x222#64 = 0#64 := by decide
 /-- `w_menvcfg(r_menvcfg() | MENVCFG_ADUE)` from 0, then `| MENVCFG_STCE` in `timerinit`. -/
 theorem menvcfgWrite_adue : menvcfgWrite 0#64 0x2000000000000000#64 = 0x2000000000000000#64 := by decide
 theorem menvcfgWrite_stce : menvcfgWrite 0x2000000000000000#64 0xA000000000000000#64 =

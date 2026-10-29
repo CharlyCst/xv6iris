@@ -382,4 +382,20 @@ theorem bit1_set_of_mod4 (pc : BitVec 64) (h : pc.toNat % 4 = 2) :
       | (rw [Nat.testBit_succ, Nat.testBit_zero]; simp [this])
   simp [h1]
 
+/-! ## Kernel-checked agreement with `SysRegs` & `PlatformConfig` -/
+
+theorem writableHpmCounters_eq : writableHpmCounters = sys_writable_hpm_counters := rfl
+theorem mcounterenWritableBits_eq : mcounterenWritableBits = sys_mcounteren_writable_bits := rfl
+theorem scounterenWritableBits_eq : scounterenWritableBits = sys_scounteren_writable_bits := rfl
+
+unseal LeanRV64D.Functions.hartSupports in
+theorem supportedExtensions_iff (e : extension) :
+    hartSupports e = supportedExtensions.contains e := by
+  cases e <;> rfl
+
+unseal LeanRV64D.Functions.hartSupports in
+theorem disabledExtensions_iff (e : extension) :
+    (!hartSupports e) = disabledExtensions.contains e := by
+  cases e <;> rfl
+
 end MachCSL

@@ -339,16 +339,16 @@ open LeanRV64D LeanRV64D.Functions
 
 unseal LeanRV64D.Functions.hartSupports LeanRV64D.Functions.currentlyEnabled in
 /-- `addi a0, a0, 1` (0x00150513) decodes at User. -/
-example : udecode32 0x00150513#32 (.ITYPE (1#12, .Regidx 10#5, .Regidx 10#5, .ADDI)) := ⟨true, by rfl⟩
+example : udecode32 0x00150513#32 (.ITYPE (1#12, .Regidx 10#5, .Regidx 10#5, .ADDI)) := ⟨_, by rfl⟩
 
 unseal LeanRV64D.Functions.hartSupports LeanRV64D.Functions.currentlyEnabled in
 /-- `c.li a0, 1` (0x4505) expands to `addi a0, x0, 1` at User. -/
 example : udecode16 0x4505#16 (.ITYPE (1#12, .Regidx 0#5, .Regidx 10#5, .ADDI)) :=
-  ⟨_, true, by rfl, by rfl⟩
+  ⟨_, _, by rfl, by rfl⟩
 
 unseal LeanRV64D.Functions.hartSupports LeanRV64D.Functions.currentlyEnabled in
 /-- `ecall` (0x00000073) decodes at User. -/
-example : udecode32 0x00000073#32 (.ECALL ()) := ⟨true, by rfl⟩
+example : udecode32 0x00000073#32 (.ECALL ()) := ⟨_, by rfl⟩
 
 unseal LeanRV64D.Functions.hartSupports LeanRV64D.Functions.currentlyEnabled in
 /-- `ret` (`c.jr ra`, 0x8082) expands to `jalr x0, 0(ra)` at User. -/

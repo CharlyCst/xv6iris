@@ -960,7 +960,7 @@ def check_misc_extension_dependencies (_ : Unit) : Bool :=
       valid)
     else valid
   let valid : Bool :=
-    if (((true : Bool) && (not (true : Bool))) : Bool)
+    if (((false : Bool) && (not (true : Bool))) : Bool)
     then
       (let valid : Bool := false
       let _ : Unit :=
@@ -969,7 +969,7 @@ def check_misc_extension_dependencies (_ : Unit) : Bool :=
       valid)
     else valid
   let valid : Bool :=
-    if (((true : Bool) && (not
+    if (((false : Bool) && (not
            ((true : Bool) && ((true : Bool) && ((false : Bool) || (true : Bool)))))) : Bool)
     then
       (let valid : Bool := false
@@ -1048,7 +1048,7 @@ def check_misc_extension_dependencies (_ : Unit) : Bool :=
           illegal_instruction_writes_xtval)))
     else valid
   let valid : Bool :=
-    if (((true : Bool) && (not (true : Bool))) : Bool)
+    if (((false : Bool) && (not (true : Bool))) : Bool)
     then
       (let valid : Bool := false
       let _ : Unit :=
@@ -1165,7 +1165,7 @@ def check_extension_param_constraints (_ : Unit) : Bool :=
   else valid
 
 def check_stateen_config (_ : Unit) : Bool :=
-  if (((not (true : Bool)) && (not (true : Bool))) : Bool)
+  if (((not (false : Bool)) && (not (false : Bool))) : Bool)
   then true
   else
     (let valid : Bool := true

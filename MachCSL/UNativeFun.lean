@@ -38,13 +38,13 @@ macro "rel_walk " hE:ident : tactic => `(tactic| repeat rel_step $hE)
 
 /-- **One step of a relational symbolic walk with writes**: `rel_step`, a write of the same value on
 both sides (a register of `hW`'s list), and the normalization of returns. -/
-macro "rel_stepW " hE:ident hW:ident hrefl:ident : tactic => `(tactic| first
+macro "rel_stepW " hE:ident hW:ident hrefl:ident hG:ident : tactic => `(tactic| first
   | exact relRun2_pure _
   | (apply relRun2_regRead_eq _ (($hE _ (by decide)).1) (($hE _ (by decide)).2); intro _)
   | (apply relRun2_plain _ rfl; intro _)
   | (apply relRun2_memRead; intro _)
   | (apply relRun2_memWrite; intro _)
-  | (apply relRun2_regWrite _ ($hW _ (by decide)) _ _ ($hrefl _ _))
+  | (apply relRun2_regWrite $hG _ ($hW _ (by decide)) _ _ ($hrefl _ _))
   | (dsimp only [FreeM.bind])
   | (simp only [pure_bind]))
 
@@ -55,37 +55,37 @@ def msRelSU (v w : BitVec 64) : Prop :=
   v &&& ~~~0x1808#64 = w &&& ~~~0x1808#64 ∧ BitVec.extractLsb' 17 1 v = 0#1
 
 section fun_rel
-variable {D : UFoot} {B : Privilege → Bool} {Rv : RegRel}
+variable {D : UFoot} {B : Privilege → Bool} {Rv : RegRel} {G : RegFile → RegFile → Prop}
 
 /-! ## §1 Generic tools -/
 
 /-- A computation that fails at its first node runs nowhere: relational to anything. -/
 theorem relRun2_fail {X : Type} (e : Error exception) (k : _ → SailM X) (m2 : SailM X) :
-    RelRun2 D B Rv (FreeM.impure (.error e) k) m2 := by
+    RelRun2 D B Rv G (FreeM.impure (.error e) k) m2 := by
   intro orc s1 s2 res1 _ h
   rw [uxnw_node D B orc s1 _ k rfl] at h
   simp [runRW] at h
 
 /-- `internal_error` runs nowhere. -/
 theorem relRun_internal_error {X : Type} (f : String) (l : Int) (m : String) :
-    RelRun D B Rv (internal_error f l m : SailM X) :=
+    RelRun D B Rv G (internal_error f l m : SailM X) :=
   relRun2_fail _ _ _
 
 /-- Two equal pure returns, through a `match` on a closed value: relational. -/
 theorem relRun2_pure_eq {X : Type} {x y : X} (h : x = y) :
-    RelRun2 D B Rv (FreeM.pure x) (FreeM.pure y) := by
+    RelRun2 D B Rv G (FreeM.pure x) (FreeM.pure y) := by
   subst h; exact relRun2_pure x
 
 /-- A heterogeneous pair of *equal* computations whose bodies are relational. -/
-theorem relRun2_of_eq {X : Type} {m1 m2 : SailM X} (he : m1 = m2) (h : RelRun D B Rv m1) :
-    RelRun2 D B Rv m1 m2 := by
+theorem relRun2_of_eq {X : Type} {m1 m2 : SailM X} (he : m1 = m2) (h : RelRun D B Rv G m1) :
+    RelRun2 D B Rv G m1 m2 := by
   subst he; exact h
 
 /-- **A read whose continuation depends only on a projection the relation preserves.** -/
 theorem relRun2_regRead_proj {X Y : Type} (r : Register) (hd : D.Dr r = true)
     (π : RegisterType r → Y)
-    (hπ : ∀ v w, Rv r v w → π v = π w) (k : Y → SailM X) (hk : ∀ y, RelRun D B Rv (k y)) :
-    RelRun2 D B Rv (FreeM.impure (.ok (.regRead r)) (fun v => k (π v)))
+    (hπ : ∀ v w, Rv r v w → π v = π w) (k : Y → SailM X) (hk : ∀ y, RelRun D B Rv G (k y)) :
+    RelRun2 D B Rv G (FreeM.impure (.ok (.regRead r)) (fun v => k (π v)))
       (FreeM.impure (.ok (.regRead r)) (fun v => k (π v))) :=
   relRun2_regRead r hd _ _ fun v w hvw => by
     rw [hπ v w hvw]; exact hk (π w)
@@ -161,8 +161,8 @@ theorem uxnRun_of_runRead (dref : (r : Register) → Option (RegisterType r)) {X
 theorem relRun2_runRead_bind (dref : (r : Register) → Option (RegisterType r))
     (hdref : ∀ r v, dref r = some v → D.Dr r = true ∧ ∀ a b, Rv r a b → a = v ∧ b = v)
     {X Y : Type} (m : SailM X) (x : X) (b : Bool) (hm : runRead dref m = some (x, b))
-    (k1 k2 : X → SailM Y) (hk : RelRun2 D B Rv (k1 x) (k2 x)) :
-    RelRun2 D B Rv (m >>= k1) (m >>= k2) := by
+    (k1 k2 : X → SailM Y) (hk : RelRun2 D B Rv G (k1 x) (k2 x)) :
+    RelRun2 D B Rv G (m >>= k1) (m >>= k2) := by
   intro orc s1 s2 res1 hrel h
   have hd1 : ∀ r v, dref r = some v → D.Dr r = true ∧ s1.u.file r = v := fun r v hr =>
     ⟨(hdref r v hr).1, ((hdref r v hr).2 _ _ (hrel.file r)).1⟩
@@ -172,10 +172,31 @@ theorem relRun2_runRead_bind (dref : (r : Register) → Option (RegisterType r))
   rw [uxnRun_bind, uxnRun_of_runRead dref orc s2 hd2 m x b hm]
   exact hk orc s1 s2 res1 hrel h
 
+/-- The reference map that answers every register from the file `f`. -/
+def fileRef (f : RegFile) : (r : Register) → Option (RegisterType r) := fun r => some (f r)
+
+/-- **A read-only stretch whose value the global relation fixes** (e.g. a PMP check, whose result
+two related PMP configurations agree on): both walks pass it with the same value, the states
+unchanged. `val f` is the stretch's value on the file `f`. -/
+theorem relRun2_readOnly_bind (hDall : ∀ r, D.Dr r = true) {X Y : Type} (m : SailM X)
+    (val : RegFile → X) (hro : ∀ f, ∃ b, runRead (fileRef f) m = some (val f, b))
+    (hval : ∀ f g, G f g → val f = val g)
+    (k1 k2 : X → SailM Y) (hk : ∀ x, RelRun2 D B Rv G (k1 x) (k2 x)) :
+    RelRun2 D B Rv G (m >>= k1) (m >>= k2) := by
+  intro orc s1 s2 res1 hrel h
+  have hd : ∀ (s : NSt) r v, fileRef s.u.file r = some v → D.Dr r = true ∧ s.u.file r = v :=
+    fun s r v hr => ⟨hDall r, (Option.some.inj hr)⟩
+  obtain ⟨b1, h1⟩ := hro s1.u.file
+  obtain ⟨b2, h2⟩ := hro s2.u.file
+  rw [uxnRun_bind, uxnRun_of_runRead (fileRef s1.u.file) orc s1 (hd s1) m _ b1 h1] at h
+  rw [uxnRun_bind, uxnRun_of_runRead (fileRef s2.u.file) orc s2 (hd s2) m _ b2 h2]
+  rw [← hval _ _ hrel.glob]
+  exact hk _ orc s1 s2 res1 hrel h
+
 /-! ## §2 `architecture` -/
 
 theorem relRun_architecture_bits_backwards (x : BitVec 2) :
-    RelRun D B Rv (architecture_bits_backwards x) := by
+    RelRun D B Rv G (architecture_bits_backwards x) := by
   unfold architecture_bits_backwards
   split
   · exact relRun_pure _
@@ -188,7 +209,7 @@ theorem relRun_architecture_SU (hdms : D.Dr .mstatus = true)
     (hsxl : ∀ v w, Rv .mstatus v w → _get_Mstatus_SXL v = _get_Mstatus_SXL w)
     (huxl : ∀ v w, Rv .mstatus v w → _get_Mstatus_UXL v = _get_Mstatus_UXL w)
     (p : Privilege) (hp : p = .Supervisor ∨ p = .User) :
-    RelRun D B Rv (architecture p) := by
+    RelRun D B Rv G (architecture p) := by
   rcases hp with rfl | rfl
   · exact relRun2_regRead_proj .mstatus hdms _get_Mstatus_SXL hsxl architecture_bits_backwards
       (fun y => relRun_architecture_bits_backwards y)
@@ -219,7 +240,7 @@ theorem effectivePrivilege_rel (acc : MemoryAccessType mem_payload) (m1 m2 : Bit
 /-- **`track_trap` at S**: its `mstatus` read only feeds a logging callback. -/
 theorem relRun_track_trap_S (hdms : D.Dr .mstatus = true)
     (hE : EqRegs D Rv [.scause, .stval, .sepc]) (b : Bool) (c : BitVec 6) :
-    RelRun D B Rv (track_trap .Supervisor b c) := by
+    RelRun D B Rv G (track_trap .Supervisor b c) := by
   unfold track_trap
   apply relRun2_regRead .mstatus hdms
   intro v w _
@@ -229,14 +250,14 @@ theorem relRun_track_trap_S (hdms : D.Dr .mstatus = true)
 /-- **Trap delivery to S** (`trap_handler .Supervisor`): relational when `mstatus` is related by
 `msRelSU` (the two values may differ in `MPP`/`MIE`): the S-mode trap only reads and rewrites
 `SIE`/`SPIE`/`SPP` and keeps the other bits. -/
-theorem relRun_trap_handler_S (hrefl : ∀ r v, Rv r v v) (hpriv : ∀ v w, Rv .cur_privilege v w → v = w)
+theorem relRun_trap_handler_S (hrefl : ∀ r v, Rv r v v) (hG : GStable D Rv G) (hpriv : ∀ v w, Rv .cur_privilege v w → v = w)
     (hE : EqRegs D Rv [.scause, .stval, .sepc, .stvec, .cur_privilege, .menvcfg])
     (hW : ∀ r ∈ [Register.scause, .stval, .sepc, .mstatus], D.Dw r = true)
     (hdms : D.Dr .mstatus = true)
     (hmisa : ∀ r v, ucDrefMisa r = some v → D.Dr r = true ∧ ∀ a b, Rv r a b → a = v ∧ b = v)
     (hms : ∀ v w, Rv .mstatus v w ↔ msRelSU v w)
     (c : TrapCause) (pc : BitVec 64) (info : Option (BitVec 64)) (ext : Option Unit) :
-    RelRun D B Rv (trap_handler .Supervisor c pc info ext) := by
+    RelRun D B Rv G (trap_handler .Supervisor c pc info ext) := by
   have hE3 : EqRegs D Rv [.scause, .stval, .sepc] := fun r hr => hE r (by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hr ⊢
     rcases hr with rfl | rfl | rfl <;> simp)
@@ -245,42 +266,42 @@ theorem relRun_trap_handler_S (hrefl : ∀ r v, Rv r v v) (hpriv : ∀ v w, Rv .
   simp only [get_config_print_exception, get_config_print_interrupt, Bool.or_false, Bool.false_eq_true, if_false, hz]
   apply relRun2_runRead_bind ucDrefMisa hmisa _ true true uc_runRead_S
   simp only [assert, if_true]
-  repeat rel_stepW hE hW hrefl
+  repeat rel_stepW hE hW hrefl hG
   apply relRun2_regRead .mstatus hdms; intro a1 b1 h1
   apply relRun2_regRead .mstatus hdms; intro a2 b2 h2
-  apply relRun2_regWrite _ (hW _ (by decide)) _ _ ?hr1
+  apply relRun2_regWrite hG _ (hW _ (by decide)) _ _ ?hr1
   case hr1 =>
     rw [hms] at h1 h2 ⊢
     simp only [msRelSU, BitVec.updateSubrange, BitVec.updateSubrange', _get_Mstatus_SIE, Sail.BitVec.extractLsb] at *
     bv_decide
-  repeat rel_stepW hE hW hrefl
+  repeat rel_stepW hE hW hrefl hG
   apply relRun2_regRead .mstatus hdms; intro a3 b3 h3
-  apply relRun2_regWrite _ (hW _ (by decide)) _ _ ?hr2
+  apply relRun2_regWrite hG _ (hW _ (by decide)) _ _ ?hr2
   case hr2 =>
     rw [hms] at h3 ⊢
     simp only [msRelSU, BitVec.updateSubrange, BitVec.updateSubrange'] at *
     bv_decide
-  repeat rel_stepW hE hW hrefl
+  repeat rel_stepW hE hW hrefl hG
   apply relRun2_regRead .mstatus hdms; intro a4 b4 h4
-  repeat rel_stepW hE hW hrefl
+  repeat rel_stepW hE hW hrefl hG
   rename_i p
   cases p
   all_goals first
     | (apply relRun2_fail; done)
     | skip
-  all_goals (repeat rel_stepW hE hW hrefl)
+  all_goals (repeat rel_stepW hE hW hrefl hG)
   all_goals
-    apply relRun2_regWrite _ (hW _ (by decide)) _ _ ?hr3
+    apply relRun2_regWrite hG _ (hW _ (by decide)) _ _ ?hr3
     case hr3 =>
       rw [hms] at h4 ⊢
       simp only [msRelSU, BitVec.updateSubrange, BitVec.updateSubrange'] at *
       bv_decide
-    repeat rel_stepW hE hW hrefl
+    repeat rel_stepW hE hW hrefl hG
   all_goals
-    apply relRun2_priv hrefl hpriv _ _ _ ?_ rfl
+    apply relRun2_priv hrefl hG hpriv _ _ _ ?_ rfl
     apply relRun2_bind (relRun_track_trap_S hdms hE3 _ _)
     intro _
-    repeat rel_stepW hE hW hrefl
+    repeat rel_stepW hE hW hrefl hG
     split
     all_goals
       try (rename_i hh; simp only [hh])

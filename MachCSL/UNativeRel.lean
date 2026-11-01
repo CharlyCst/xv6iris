@@ -21,29 +21,38 @@ open LeanRV64D LeanRV64D.Functions
 /-- A register-by-register relation on register values. -/
 abbrev RegRel := (r : Register) → RegisterType r → RegisterType r → Prop
 
-/-- Two native-walker states related by `Rv`: the register files related register by register,
-the same memory, dirty bytes and reservation. -/
-structure NRel (Rv : RegRel) (s1 s2 : NSt) : Prop where
+/-- Two native-walker states related by `Rv` and `G`: the register files related register by
+register (`Rv`) and as a whole (`G`, for a joint property of several registers such as the
+agreement of two PMP configurations on the accesses they allow), the same memory, dirty bytes and
+reservation. -/
+structure NRel (Rv : RegRel) (G : RegFile → RegFile → Prop) (s1 s2 : NSt) : Prop where
   file  : ∀ r, Rv r (s1.u.file r) (s2.u.file r)
   T     : s1.T = s2.T
   dirty : s1.dirty = s2.dirty
   rv    : s1.u.rv = s2.u.rv
+  glob  : G s1.u.file s2.u.file
 
 /-- Two walk results related by `Rv`: the same kind, value (or exit privilege and continuation),
 oracle left, and related states. -/
-def NResRel {X : Type} (Rv : RegRel) : NRes X → NRes X → Prop
-  | .done x1 s1 o1, .done x2 s2 o2 => x1 = x2 ∧ o1 = o2 ∧ NRel Rv s1 s2
-  | .exit p1 k1 s1 o1, .exit p2 k2 s2 o2 => p1 = p2 ∧ k1 = k2 ∧ o1 = o2 ∧ NRel Rv s1 s2
+def NResRel {X : Type} (Rv : RegRel) (G : RegFile → RegFile → Prop) : NRes X → NRes X → Prop
+  | .done x1 s1 o1, .done x2 s2 o2 => x1 = x2 ∧ o1 = o2 ∧ NRel Rv G s1 s2
+  | .exit p1 k1 s1 o1, .exit p2 k2 s2 o2 => p1 = p2 ∧ k1 = k2 ∧ o1 = o2 ∧ NRel Rv G s1 s2
   | _, _ => False
 
 /-- **A relational computation** under `(D, B)` and `Rv`: from related states, a run of the first
 gives a run of the second with a related result. -/
-def RelRun (D : UFoot) (B : Privilege → Bool) (Rv : RegRel) {X : Type} (m : SailM X) : Prop :=
-  ∀ (orc : UOrc) (s1 s2 : NSt) (res1 : NRes X), NRel Rv s1 s2 → uxnRun D B orc s1 m = some res1 →
-    ∃ res2, uxnRun D B orc s2 m = some res2 ∧ NResRel Rv res1 res2
+def RelRun (D : UFoot) (B : Privilege → Bool) (Rv : RegRel) (G : RegFile → RegFile → Prop) {X : Type} (m : SailM X) : Prop :=
+  ∀ (orc : UOrc) (s1 s2 : NSt) (res1 : NRes X), NRel Rv G s1 s2 → uxnRun D B orc s1 m = some res1 →
+    ∃ res2, uxnRun D B orc s2 m = some res2 ∧ NResRel Rv G res1 res2
+
+/-- `G` survives a write of two related values to a register a walk may write (`D.Dw`) or to the
+privilege. -/
+def GStable (D : UFoot) (Rv : RegRel) (G : RegFile → RegFile → Prop) : Prop :=
+  ∀ (f g : RegFile) (r : Register) (v w : RegisterType r), (D.Dw r = true ∨ r = .cur_privilege) →
+    Rv r v w → G f g → G (f.set r v) (g.set r w)
 
 section rel
-variable {D : UFoot} {B : Privilege → Bool} {Rv : RegRel}
+variable {D : UFoot} {B : Privilege → Bool} {Rv : RegRel} {G : RegFile → RegFile → Prop}
 
 /-! ## §1 The bind law of the native walker -/
 
@@ -110,7 +119,7 @@ theorem uxnRun_bind {X Y : Type} (m : SailM X) (f : X → SailM Y) :
 
 /-! ## §2 Relational runs -/
 
-theorem relRun_pure {X : Type} (x : X) : RelRun D B Rv (FreeM.pure x : SailM X) := by
+theorem relRun_pure {X : Type} (x : X) : RelRun D B Rv G (FreeM.pure x : SailM X) := by
   intro orc s1 s2 res1 hrel h
   simp only [uxnRun, Option.some.injEq] at h
   subst h
@@ -118,8 +127,8 @@ theorem relRun_pure {X : Type} (x : X) : RelRun D B Rv (FreeM.pure x : SailM X) 
 
 /-- **Relational runs compose.** The exit continuations of `m` must be the same in both runs
 (`NResRel`), so the bound exit continuations are equal too. -/
-theorem relRun_bind {X Y : Type} {m : SailM X} {f : X → SailM Y} (hm : RelRun D B Rv m)
-    (hf : ∀ x, RelRun D B Rv (f x)) : RelRun D B Rv (m >>= f) := by
+theorem relRun_bind {X Y : Type} {m : SailM X} {f : X → SailM Y} (hm : RelRun D B Rv G m)
+    (hf : ∀ x, RelRun D B Rv G (f x)) : RelRun D B Rv G (m >>= f) := by
   intro orc s1 s2 res1 hrel h
   rw [uxnRun_bind] at h ⊢
   cases h1 : uxnRun D B orc s1 m with
@@ -145,9 +154,10 @@ theorem relRun_bind {X Y : Type} {m : SailM X} {f : X → SailM Y} (hm : RelRun 
         exact ⟨_, rfl, rfl, rfl, rfl, hrel'⟩
 
 /-- Related files stay related under the same register write (`Rv` reflexive). -/
-theorem nrel_setPin (hrefl : ∀ r v, Rv r v v) {s1 s2 : NSt} (hrel : NRel Rv s1 s2) (r : Register)
-    (v : RegisterType r) :
-    NRel Rv { s1 with u := { s1.u with pin := s1.u.pin.set r v } }
+theorem nrel_setPin (hrefl : ∀ r v, Rv r v v) (hG : GStable D Rv G) {s1 s2 : NSt}
+    (hrel : NRel Rv G s1 s2) (r : Register) (v : RegisterType r)
+    (hw : D.Dw r = true ∨ r = .cur_privilege) :
+    NRel Rv G { s1 with u := { s1.u with pin := s1.u.pin.set r v } }
       { s2 with u := { s2.u with pin := s2.u.pin.set r v } } where
   file r' := by
     show Rv r' (({ s1.u with pin := s1.u.pin.set r v } : UWSt).file r')
@@ -160,15 +170,20 @@ theorem nrel_setPin (hrefl : ∀ r v, Rv r v v) {s1 s2 : NSt} (hrel : NRel Rv s1
   T := hrel.T
   dirty := hrel.dirty
   rv := hrel.rv
+  glob := by
+    show G (({ s1.u with pin := s1.u.pin.set r v } : UWSt).file)
+      (({ s2.u with pin := s2.u.pin.set r v } : UWSt).file)
+    rw [UWSt.file_setPin, UWSt.file_setPin]
+    exact hG _ _ r v v hw (hrefl r v) hrel.glob
 
 /-- **One `runRW` node, relationally**: when every register the footprint reads is related only to
 itself, a node gives the same value and leaves related states. -/
-theorem runRW_node_rel (hrefl : ∀ r v, Rv r v v) (heq : ∀ r, D.Dr r = true → ∀ v w, Rv r v w → v = w)
+theorem runRW_node_rel (hrefl : ∀ r v, Rv r v v) (hG : GStable D Rv G) (heq : ∀ r, D.Dr r = true → ∀ v w, Rv r v w → v = w)
     (c : Eff RegisterType exception) (hown : nOwn c = false) (orc : UOrc) (s1 s2 : NSt)
-    (hrel : NRel Rv s1 s2) (r1 : ArchSem.Effect.ret c × UWSt × UOrc)
+    (hrel : NRel Rv G s1 s2) (r1 : ArchSem.Effect.ret c × UWSt × UOrc)
     (h : runRW D orc s1.u (FreeM.impure c FreeM.pure) = some r1) :
     ∃ u2, runRW D orc s2.u (FreeM.impure c FreeM.pure) = some (r1.1, u2, r1.2.2) ∧
-      NRel Rv { s1 with u := r1.2.1 } { s2 with u := u2 } := by
+      NRel Rv G { s1 with u := r1.2.1 } { s2 with u := u2 } := by
   rcases c with e | op
   · simp [runRW] at h
   · cases op with
@@ -200,7 +215,7 @@ theorem runRW_node_rel (hrefl : ∀ r v, Rv r v v) (heq : ∀ r, D.Dr r = true �
       | true =>
         simp only [runRW, hd, if_true, Option.some.injEq] at h
         subst h
-        refine ⟨{ s2.u with pin := s2.u.pin.set reg v }, ?_, nrel_setPin hrefl hrel reg v⟩
+        refine ⟨{ s2.u with pin := s2.u.pin.set reg v }, ?_, nrel_setPin hrefl hG hrel reg v (.inl hd)⟩
         simp only [runRW, hd, if_true]
     | memRead => simp [nOwn] at hown
     | memWrite => simp [nOwn] at hown
@@ -218,9 +233,9 @@ theorem runRW_node_rel (hrefl : ∀ r v, Rv r v v) (heq : ∀ r, D.Dr r = true �
 /-- **The congruence of the native walker** (`uxnRun_congr`): when every register the footprint
 reads is related only to itself (and `cur_privilege`, which the walker reads, too), every
 computation runs in lock-step from related states. -/
-theorem relRun_of_eqRead (hrefl : ∀ r v, Rv r v v)
+theorem relRun_of_eqRead (hrefl : ∀ r v, Rv r v v) (hG : GStable D Rv G)
     (heq : ∀ r, D.Dr r = true → ∀ v w, Rv r v w → v = w)
-    (hpriv : ∀ v w, Rv .cur_privilege v w → v = w) {X : Type} (m : SailM X) : RelRun D B Rv m := by
+    (hpriv : ∀ v w, Rv .cur_privilege v w → v = w) {X : Type} (m : SailM X) : RelRun D B Rv G m := by
   induction m with
   | pure x => exact relRun_pure x
   | impure c k ih =>
@@ -233,7 +248,7 @@ theorem relRun_of_eqRead (hrefl : ∀ r v, Rv r v v)
       | none => rw [h1] at h; cases h
       | some r1 =>
         rw [h1] at h
-        obtain ⟨u2, h2, hrel'⟩ := runRW_node_rel hrefl heq c hown orc s1 s2 hrel r1 h1
+        obtain ⟨u2, h2, hrel'⟩ := runRW_node_rel hrefl hG heq c hown orc s1 s2 hrel r1 h1
         rw [h2]
         exact ih r1.1 r1.2.2 _ _ res1 hrel' h
     | true =>
@@ -254,7 +269,7 @@ theorem relRun_of_eqRead (hrefl : ∀ r v, Rv r v v)
       | true =>
         rw [uxnw_priv_quiet D B _ s1 p k h0 h1] at h
         rw [uxnw_priv_quiet D B _ s2 p k h0' h1]
-        exact ih () orc _ _ res1 (nrel_setPin hrefl hrel _ p) h
+        exact ih () orc _ _ res1 (nrel_setPin hrefl hG hrel _ p (.inr rfl)) h
       | false =>
         rw [uxnw_priv_exit D B _ s1 p k h0 h1] at h
         rw [uxnw_priv_exit D B _ s2 p k h0' h1]
@@ -280,7 +295,7 @@ theorem relRun_of_eqRead (hrefl : ∀ r v, Rv r v v)
             split at h
             · rename_i hx
               rw [if_pos hx]
-              exact ih _ orc { s1 with u := { s1.u with rv := true } } _ res1 ⟨hrel.file, rfl, rfl, rfl⟩ h
+              exact ih _ orc { s1 with u := { s1.u with rv := true } } _ res1 ⟨hrel.file, rfl, rfl, rfl, hrel.glob⟩ h
             · rename_i hx
               rw [if_neg hx]
               exact ih _ _ s1 s2 res1 hrel h
@@ -300,7 +315,7 @@ theorem relRun_of_eqRead (hrefl : ∀ r v, Rv r v v)
           · rename_i ho
             rw [if_pos ho]
             exact ih _ orc ⟨{ s1.u with rv := false }, bmWrite s1.T req.pa n w', dirtyAdd s1.dirty req.pa n⟩ _
-              res1 ⟨hrel.file, rfl, by rw [hrel.dirty], rfl⟩ h
+              res1 ⟨hrel.file, rfl, by rw [hrel.dirty], rfl, hrel.glob⟩ h
           · cases h
         · cases h
       · cases h
@@ -311,16 +326,16 @@ theorem relRun_of_eqRead (hrefl : ∀ r v, Rv r v v)
 /-- **A heterogeneous relational pair**: from related states, a run of `m1` gives a run of `m2`
 with a related result. A register read whose two values differ continues with two different
 computations (`k v`, `k w`), hence the two sides. -/
-def RelRun2 (D : UFoot) (B : Privilege → Bool) (Rv : RegRel) {X : Type} (m1 m2 : SailM X) : Prop :=
-  ∀ (orc : UOrc) (s1 s2 : NSt) (res1 : NRes X), NRel Rv s1 s2 → uxnRun D B orc s1 m1 = some res1 →
-    ∃ res2, uxnRun D B orc s2 m2 = some res2 ∧ NResRel Rv res1 res2
+def RelRun2 (D : UFoot) (B : Privilege → Bool) (Rv : RegRel) (G : RegFile → RegFile → Prop) {X : Type} (m1 m2 : SailM X) : Prop :=
+  ∀ (orc : UOrc) (s1 s2 : NSt) (res1 : NRes X), NRel Rv G s1 s2 → uxnRun D B orc s1 m1 = some res1 →
+    ∃ res2, uxnRun D B orc s2 m2 = some res2 ∧ NResRel Rv G res1 res2
 
-theorem relRun2_of_relRun {X : Type} {m : SailM X} (h : RelRun D B Rv m) : RelRun2 D B Rv m m := h
+theorem relRun2_of_relRun {X : Type} {m : SailM X} (h : RelRun D B Rv G m) : RelRun2 D B Rv G m m := h
 
 /-- Heterogeneous pairs compose; the exit continuations must coincide, so both sides must exit
 with the same continuation (`NResRel`), which is why `f` is shared. -/
-theorem relRun2_bind {X Y : Type} {m1 m2 : SailM X} {f : X → SailM Y} (hm : RelRun2 D B Rv m1 m2)
-    (hf : ∀ x, RelRun D B Rv (f x)) : RelRun2 D B Rv (m1 >>= f) (m2 >>= f) := by
+theorem relRun2_bind {X Y : Type} {m1 m2 : SailM X} {f : X → SailM Y} (hm : RelRun2 D B Rv G m1 m2)
+    (hf : ∀ x, RelRun D B Rv G (f x)) : RelRun2 D B Rv G (m1 >>= f) (m2 >>= f) := by
   intro orc s1 s2 res1 hrel h
   rw [uxnRun_bind] at h ⊢
   cases h1 : uxnRun D B orc s1 m1 with
@@ -349,8 +364,8 @@ theorem relRun2_bind {X Y : Type} {m1 m2 : SailM X} {f : X → SailM Y} (hm : Re
 relational when, for every two related values, the continuations are a relational pair. -/
 theorem relRun2_regRead {X : Type} (r : Register) (hd : D.Dr r = true)
     (k1 k2 : RegisterType r → SailM X)
-    (hk : ∀ v w, Rv r v w → RelRun2 D B Rv (k1 v) (k2 w)) :
-    RelRun2 D B Rv (FreeM.impure (.ok (.regRead r)) k1) (FreeM.impure (.ok (.regRead r)) k2) := by
+    (hk : ∀ v w, Rv r v w → RelRun2 D B Rv G (k1 v) (k2 w)) :
+    RelRun2 D B Rv G (FreeM.impure (.ok (.regRead r)) k1) (FreeM.impure (.ok (.regRead r)) k2) := by
   intro orc s1 s2 res1 hrel h
   have hown : nOwn (.ok (.regRead r) : Eff RegisterType exception) = false := rfl
   have e : ∀ (s : NSt) (k : RegisterType r → SailM X),
@@ -367,16 +382,16 @@ theorem relRun2_regRead {X : Type} (r : Register) (hd : D.Dr r = true)
   exact hk _ _ (hrel.file r) orc s1 s2 res1 hrel h
 
 /-- Equal computations whose reads all go through equal registers. -/
-theorem relRun2_refl_of_eqRead (hrefl : ∀ r v, Rv r v v)
+theorem relRun2_refl_of_eqRead (hrefl : ∀ r v, Rv r v v) (hG : GStable D Rv G)
     (heq : ∀ r, D.Dr r = true → ∀ v w, Rv r v w → v = w)
     (hpriv : ∀ v w, Rv .cur_privilege v w → v = w) {X : Type} (m : SailM X) :
-    RelRun2 D B Rv m m :=
-  relRun_of_eqRead hrefl heq hpriv m
+    RelRun2 D B Rv G m m :=
+  relRun_of_eqRead hrefl hG heq hpriv m
 
 /-- Related files stay related under writes of two related values. -/
-theorem nrel_setPin2 {s1 s2 : NSt} (hrel : NRel Rv s1 s2) (r : Register) (v1 v2 : RegisterType r)
-    (hv : Rv r v1 v2) :
-    NRel Rv { s1 with u := { s1.u with pin := s1.u.pin.set r v1 } }
+theorem nrel_setPin2 (hG : GStable D Rv G) {s1 s2 : NSt} (hrel : NRel Rv G s1 s2) (r : Register)
+    (v1 v2 : RegisterType r) (hv : Rv r v1 v2) (hw : D.Dw r = true ∨ r = .cur_privilege) :
+    NRel Rv G { s1 with u := { s1.u with pin := s1.u.pin.set r v1 } }
       { s2 with u := { s2.u with pin := s2.u.pin.set r v2 } } where
   file r' := by
     show Rv r' (({ s1.u with pin := s1.u.pin.set r v1 } : UWSt).file r')
@@ -389,11 +404,17 @@ theorem nrel_setPin2 {s1 s2 : NSt} (hrel : NRel Rv s1 s2) (r : Register) (v1 v2 
   T := hrel.T
   dirty := hrel.dirty
   rv := hrel.rv
+  glob := by
+    show G (({ s1.u with pin := s1.u.pin.set r v1 } : UWSt).file)
+      (({ s2.u with pin := s2.u.pin.set r v2 } : UWSt).file)
+    rw [UWSt.file_setPin, UWSt.file_setPin]
+    exact hG _ _ r v1 v2 hw hv hrel.glob
 
 /-- **A write of two related values** (writable by `D`, not the privilege). -/
-theorem relRun2_regWrite {X : Type} (r : Register) (hd : D.Dw r = true) (v1 v2 : RegisterType r)
-    (hv : Rv r v1 v2) (k1 k2 : PUnit → SailM X) (hk : RelRun2 D B Rv (k1 ()) (k2 ())) :
-    RelRun2 D B Rv (FreeM.impure (.ok (.regWrite r v1)) k1) (FreeM.impure (.ok (.regWrite r v2)) k2) := by
+theorem relRun2_regWrite {X : Type} (hG : GStable D Rv G) (r : Register) (hd : D.Dw r = true)
+    (v1 v2 : RegisterType r)
+    (hv : Rv r v1 v2) (k1 k2 : PUnit → SailM X) (hk : RelRun2 D B Rv G (k1 ()) (k2 ())) :
+    RelRun2 D B Rv G (FreeM.impure (.ok (.regWrite r v1)) k1) (FreeM.impure (.ok (.regWrite r v2)) k2) := by
   have hr : r ≠ .cur_privilege := by
     rintro rfl; rw [D.noPriv] at hd; cases hd
   intro orc s1 s2 res1 hrel h
@@ -408,10 +429,10 @@ theorem relRun2_regWrite {X : Type} (r : Register) (hd : D.Dw r = true) (v1 v2 :
     rfl
   rw [e] at h
   rw [e]
-  exact hk orc _ _ res1 (nrel_setPin2 hrel r v1 v2 hv) h
+  exact hk orc _ _ res1 (nrel_setPin2 hG hrel r v1 v2 hv (.inl hd)) h
 
 /-- Two returns of the same value. -/
-theorem relRun2_pure {X : Type} (x : X) : RelRun2 D B Rv (FreeM.pure x) (FreeM.pure x) :=
+theorem relRun2_pure {X : Type} (x : X) : RelRun2 D B Rv G (FreeM.pure x) (FreeM.pure x) :=
   relRun_pure x
 
 /-! ## §4 Node by node, heterogeneous continuations (for a relational symbolic walk) -/
@@ -439,8 +460,8 @@ theorem runRW_node_plain (c : Eff RegisterType exception) (hc : nPlain c = true)
 
 /-- **A plain node on both sides**, with continuations relational at every answer. -/
 theorem relRun2_plain {X : Type} (c : Eff RegisterType exception) (hc : nPlain c = true)
-    (k1 k2 : ArchSem.Effect.ret c → SailM X) (hk : ∀ x, RelRun2 D B Rv (k1 x) (k2 x)) :
-    RelRun2 D B Rv (FreeM.impure c k1) (FreeM.impure c k2) := by
+    (k1 k2 : ArchSem.Effect.ret c → SailM X) (hk : ∀ x, RelRun2 D B Rv G (k1 x) (k2 x)) :
+    RelRun2 D B Rv G (FreeM.impure c k1) (FreeM.impure c k2) := by
   have hown : nOwn c = false := by
     rcases c with e | op
     · rfl
@@ -469,15 +490,15 @@ theorem relRun2_plain {X : Type} (c : Eff RegisterType exception) (hc : nPlain c
 /-- **A read of an equal register on both sides.** -/
 theorem relRun2_regRead_eq {X : Type} (r : Register) (hd : D.Dr r = true)
     (heqr : ∀ v w, Rv r v w → v = w) (k1 k2 : RegisterType r → SailM X)
-    (hk : ∀ v, RelRun2 D B Rv (k1 v) (k2 v)) :
-    RelRun2 D B Rv (FreeM.impure (.ok (.regRead r)) k1) (FreeM.impure (.ok (.regRead r)) k2) :=
+    (hk : ∀ v, RelRun2 D B Rv G (k1 v) (k2 v)) :
+    RelRun2 D B Rv G (FreeM.impure (.ok (.regRead r)) k1) (FreeM.impure (.ok (.regRead r)) k2) :=
   relRun2_regRead r hd k1 k2 fun v w hvw => by rw [heqr v w hvw]; exact hk w
 
 /-- **The same privilege write on both sides** (the privilege is related only to itself). -/
-theorem relRun2_priv {X : Type} (hrefl : ∀ r v, Rv r v v)
+theorem relRun2_priv {X : Type} (hrefl : ∀ r v, Rv r v v) (hG : GStable D Rv G)
     (hpriv : ∀ v w, Rv .cur_privilege v w → v = w) (p : Privilege) (k1 k2 : PUnit → SailM X)
-    (hk : RelRun2 D B Rv (k1 ()) (k2 ())) (hk12 : k1 = k2) :
-    RelRun2 D B Rv (FreeM.impure (.ok (.regWrite .cur_privilege p)) k1)
+    (hk : RelRun2 D B Rv G (k1 ()) (k2 ())) (hk12 : k1 = k2) :
+    RelRun2 D B Rv G (FreeM.impure (.ok (.regWrite .cur_privilege p)) k1)
       (FreeM.impure (.ok (.regWrite .cur_privilege p)) k2) := by
   subst hk12
   intro orc s1 s2 res1 hrel h
@@ -490,7 +511,7 @@ theorem relRun2_priv {X : Type} (hrefl : ∀ r v, Rv r v v)
   | true =>
     rw [uxnw_priv_quiet D B _ s1 p k1 h0 h1] at h
     rw [uxnw_priv_quiet D B _ s2 p k1 h0' h1]
-    exact hk orc _ _ res1 (nrel_setPin hrefl hrel .cur_privilege p) h
+    exact hk orc _ _ res1 (nrel_setPin hrefl hG hrel .cur_privilege p (.inr rfl)) h
   | false =>
     rw [uxnw_priv_exit D B _ s1 p k1 h0 h1] at h
     rw [uxnw_priv_exit D B _ s2 p k1 h0' h1]
@@ -502,8 +523,8 @@ theorem relRun2_priv {X : Type} (hrefl : ∀ r v, Rv r v v)
 theorem relRun2_memRead {X : Type} {n vasize : Nat}
     (req : Mem_read_request n vasize Arch.pa Arch.translation Arch.arch_ak)
     (k1 k2 : Result ((BitVec (8 * n)) × (Option Bool)) Arch.abort → SailM X)
-    (hk : ∀ x, RelRun2 D B Rv (k1 x) (k2 x)) :
-    RelRun2 D B Rv (FreeM.impure (.ok (.memRead n vasize req)) k1)
+    (hk : ∀ x, RelRun2 D B Rv G (k1 x) (k2 x)) :
+    RelRun2 D B Rv G (FreeM.impure (.ok (.memRead n vasize req)) k1)
       (FreeM.impure (.ok (.memRead n vasize req)) k2) := by
   intro orc s1 s2 res1 hrel h
   rw [uxnw_read] at h
@@ -524,7 +545,7 @@ theorem relRun2_memRead {X : Type} {n vasize : Nat}
         split at h
         · rename_i hx
           rw [if_pos hx]
-          exact hk _ orc { s1 with u := { s1.u with rv := true } } _ res1 ⟨hrel.file, rfl, rfl, rfl⟩ h
+          exact hk _ orc { s1 with u := { s1.u with rv := true } } _ res1 ⟨hrel.file, rfl, rfl, rfl, hrel.glob⟩ h
         · rename_i hx
           rw [if_neg hx]
           exact hk _ _ s1 s2 res1 hrel h
@@ -535,8 +556,8 @@ theorem relRun2_memRead {X : Type} {n vasize : Nat}
 theorem relRun2_memWrite {X : Type} {n vasize : Nat}
     (req : Mem_write_request n vasize Arch.pa Arch.translation Arch.arch_ak)
     (k1 k2 : Result (Option Bool) Arch.abort → SailM X)
-    (hk : ∀ x, RelRun2 D B Rv (k1 x) (k2 x)) :
-    RelRun2 D B Rv (FreeM.impure (.ok (.memWrite n vasize req)) k1)
+    (hk : ∀ x, RelRun2 D B Rv G (k1 x) (k2 x)) :
+    RelRun2 D B Rv G (FreeM.impure (.ok (.memWrite n vasize req)) k1)
       (FreeM.impure (.ok (.memWrite n vasize req)) k2) := by
   intro orc s1 s2 res1 hrel h
   rw [uxnw_write] at h
@@ -552,7 +573,7 @@ theorem relRun2_memWrite {X : Type} {n vasize : Nat}
       · rename_i ho
         rw [if_pos ho]
         exact hk _ orc ⟨{ s1.u with rv := false }, bmWrite s1.T req.pa n w', dirtyAdd s1.dirty req.pa n⟩ _
-          res1 ⟨hrel.file, rfl, by rw [hrel.dirty], rfl⟩ h
+          res1 ⟨hrel.file, rfl, by rw [hrel.dirty], rfl, hrel.glob⟩ h
       · cases h
     · cases h
   · cases h

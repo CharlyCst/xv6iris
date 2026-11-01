@@ -347,7 +347,7 @@ theorem relRun2_bind {X Y : Type} {m1 m2 : SailM X} {f : X → SailM Y} (hm : Re
 
 /-- **A read of a register whose two values may differ** (readable by `D`): the pair is
 relational when, for every two related values, the continuations are a relational pair. -/
-theorem relRun2_regRead {X : Type} (r : Register) (hd : D.Dr r = true) (hr : r ≠ .cur_privilege)
+theorem relRun2_regRead {X : Type} (r : Register) (hd : D.Dr r = true)
     (k1 k2 : RegisterType r → SailM X)
     (hk : ∀ v w, Rv r v w → RelRun2 D B Rv (k1 v) (k2 w)) :
     RelRun2 D B Rv (FreeM.impure (.ok (.regRead r)) k1) (FreeM.impure (.ok (.regRead r)) k2) := by
@@ -467,11 +467,11 @@ theorem relRun2_plain {X : Type} (c : Eff RegisterType exception) (hc : nPlain c
       exact hk r1.1 r1.2.2 s1 s2 res1 hrel h
 
 /-- **A read of an equal register on both sides.** -/
-theorem relRun2_regRead_eq {X : Type} (r : Register) (hd : D.Dr r = true) (hr : r ≠ .cur_privilege)
+theorem relRun2_regRead_eq {X : Type} (r : Register) (hd : D.Dr r = true)
     (heqr : ∀ v w, Rv r v w → v = w) (k1 k2 : RegisterType r → SailM X)
     (hk : ∀ v, RelRun2 D B Rv (k1 v) (k2 v)) :
     RelRun2 D B Rv (FreeM.impure (.ok (.regRead r)) k1) (FreeM.impure (.ok (.regRead r)) k2) :=
-  relRun2_regRead r hd hr k1 k2 fun v w hvw => by rw [heqr v w hvw]; exact hk w
+  relRun2_regRead r hd k1 k2 fun v w hvw => by rw [heqr v w hvw]; exact hk w
 
 /-- **The same privilege write on both sides** (the privilege is related only to itself). -/
 theorem relRun2_priv {X : Type} (hrefl : ∀ r v, Rv r v v)

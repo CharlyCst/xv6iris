@@ -31,7 +31,10 @@ macro "rel_step " hE:ident : tactic => `(tactic| first
   | (apply relRun2_regRead_eq _ (($hE _ (by decide)).1) (($hE _ (by decide)).2); intro _)
   | (apply relRun2_plain _ rfl; intro _)
   | (apply relRun2_memRead; intro _)
-  | (apply relRun2_memWrite; intro _))
+  | (apply relRun2_memWrite; intro _)
+  | (dsimp only [FreeM.bind])
+  | (simp only [pure_bind])
+  | (simp only [Pure.pure, FreeM.bind]))
 
 /-- **A relational symbolic walk**: `rel_step` as long as it applies. -/
 macro "rel_walk " hE:ident : tactic => `(tactic| repeat rel_step $hE)
@@ -47,7 +50,8 @@ macro "rel_stepW " hE:ident hW:ident hrefl:ident hG:ident : tactic => `(tactic| 
   | (apply relRun2_regWrite $hG _ ($hW _ (by decide)) _ _ ($hrefl _ _))
   | (dsimp only [FreeM.bind])
   | (simp only [pure_bind])
-  | (simp only [Function.comp, FreeM.bind, ExceptT.bindCont]))
+  | (simp only [Function.comp, FreeM.bind, ExceptT.bindCont])
+  | (simp only [Pure.pure, FreeM.bind]))
 
 /-- The relation on `mstatus` that S- and U-mode code cannot observe: the two values agree outside
 `MPP` (bits 11–12) and `MIE` (bit 3), and `MPRV` is clear (so `MPP` is not consulted by address
@@ -543,6 +547,31 @@ theorem relRun_trap_handler_S (hrefl : ∀ r v, Rv r v v) (hG : GStable D Rv G) 
     all_goals
       try (rename_i hh; simp only [hh])
       first | exact relRun2_pure _ | (apply relRun2_fail)
+
+/-- A mapped relational computation. -/
+theorem relRun_map {X Y : Type} (f : X → Y) {m : SailM X} (hm : RelRun D B Rv G m) :
+    RelRun D B Rv G (f <$> m) := by
+  have : (f <$> m) = (m >>= fun x => pure (f x)) := by
+    rw [map_eq_pure_bind]
+  rw [this]
+  exact relRun_bind hm (fun x => relRun_pure _)
+
+/-- **`translationMode`**: Bare at M; otherwise `satp`'s mode, read under the `SXL` the relation
+preserves. -/
+theorem relRun_translationMode (hdms : D.Dr .mstatus = true)
+    (hsxl : ∀ v w, Rv .mstatus v w → _get_Mstatus_SXL v = _get_Mstatus_SXL w)
+    (huxl : ∀ v w, Rv .mstatus v w → _get_Mstatus_UXL v = _get_Mstatus_UXL w)
+    (hE : EqRegs D Rv [.satp]) (p : Privilege) : RelRun D B Rv G (translationMode p) := by
+  unfold translationMode
+  split
+  · exact relRun_pure _
+  · apply relRun_bind (relRun_architecture_SU hdms hsxl huxl _ (.inl rfl))
+    intro arch
+    cases arch
+    all_goals simp only [assert, Functions.xlen]
+    all_goals (repeat rel_step hE)
+    all_goals (try split)
+    all_goals first | exact relRun2_pure _ | (apply relRun2_fail) | skip
 
 end fun_rel2
 

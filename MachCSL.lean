@@ -253,3 +253,6 @@ import MachCSL.UFenceU
 import MachCSL.BvLemmas
 import MachCSL.OwnAllocSame
 import MachCSL.UNative
+import MachCSL.UxdExcl
+import MachCSL.UNativeSwp
+import MachCSL.UNativeMono

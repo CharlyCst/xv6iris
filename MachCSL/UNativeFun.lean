@@ -54,6 +54,7 @@ translation). -/
 def msRelSU (v w : BitVec 64) : Prop :=
   v &&& ~~~0x1808#64 = w &&& ~~~0x1808#64 ∧ BitVec.extractLsb' 17 1 v = 0#1
 
+
 section fun_rel
 variable {D : UFoot} {B : Privilege → Bool} {Rv : RegRel} {G : RegFile → RegFile → Prop}
 
@@ -179,19 +180,115 @@ def fileRef (f : RegFile) : (r : Register) → Option (RegisterType r) := fun r 
 two related PMP configurations agree on): both walks pass it with the same value, the states
 unchanged. `val f` is the stretch's value on the file `f`. -/
 theorem relRun2_readOnly_bind (hDall : ∀ r, D.Dr r = true) {X Y : Type} (m : SailM X)
-    (val : RegFile → X) (hro : ∀ f, ∃ b, runRead (fileRef f) m = some (val f, b))
+    (val : RegFile → X)
+    (hro : ∀ f g, G f g → (∃ b, runRead (fileRef f) m = some (val f, b)) ∧
+      (∃ b, runRead (fileRef g) m = some (val g, b)))
     (hval : ∀ f g, G f g → val f = val g)
     (k1 k2 : X → SailM Y) (hk : ∀ x, RelRun2 D B Rv G (k1 x) (k2 x)) :
     RelRun2 D B Rv G (m >>= k1) (m >>= k2) := by
   intro orc s1 s2 res1 hrel h
   have hd : ∀ (s : NSt) r v, fileRef s.u.file r = some v → D.Dr r = true ∧ s.u.file r = v :=
     fun s r v hr => ⟨hDall r, (Option.some.inj hr)⟩
-  obtain ⟨b1, h1⟩ := hro s1.u.file
-  obtain ⟨b2, h2⟩ := hro s2.u.file
+  obtain ⟨⟨b1, h1⟩, ⟨b2, h2⟩⟩ := hro _ _ hrel.glob
   rw [uxnRun_bind, uxnRun_of_runRead (fileRef s1.u.file) orc s1 (hd s1) m _ b1 h1] at h
   rw [uxnRun_bind, uxnRun_of_runRead (fileRef s2.u.file) orc s2 (hd s2) m _ b2 h2]
   rw [← hval _ _ hrel.glob]
   exact hk _ orc s1 s2 res1 hrel h
+
+/-- **A read-only stretch on which the global relation forces equal runs** (both succeed with the
+same value): the PMP-check interface, without naming the value. -/
+theorem relRun2_runReadEq_bind (hDall : ∀ r, D.Dr r = true) {X Y : Type} (m : SailM X)
+    (hG : ∀ f g, G f g → ∃ x b1 b2, runRead (fileRef f) m = some (x, b1) ∧
+      runRead (fileRef g) m = some (x, b2))
+    (k1 k2 : X → SailM Y) (hk : ∀ x, RelRun2 D B Rv G (k1 x) (k2 x)) :
+    RelRun2 D B Rv G (m >>= k1) (m >>= k2) := by
+  intro orc s1 s2 res1 hrel h
+  have hd : ∀ (s : NSt) r v, fileRef s.u.file r = some v → D.Dr r = true ∧ s.u.file r = v :=
+    fun s r v hr => ⟨hDall r, (Option.some.inj hr)⟩
+  obtain ⟨x, b1, b2, h1, h2⟩ := hG _ _ hrel.glob
+  rw [uxnRun_bind, uxnRun_of_runRead (fileRef s1.u.file) orc s1 (hd s1) m _ b1 h1] at h
+  rw [uxnRun_bind, uxnRun_of_runRead (fileRef s2.u.file) orc s2 (hd s2) m _ b2 h2]
+  exact hk _ orc s1 s2 res1 hrel h
+
+/-- **The bind law of `runRead`.** -/
+theorem runRead_bind (dref : (r : Register) → Option (RegisterType r)) {X Y : Type} (m : SailM X)
+    (k : X → SailM Y) :
+    runRead dref (m >>= k) =
+      match runRead dref m with
+      | none => none
+      | some (x, b) => (runRead dref (k x)).map fun q => (q.1, b || q.2) := by
+  induction m with
+  | pure x =>
+    show runRead dref (k x) = _
+    simp only [runRead, Bool.false_or]
+    cases runRead dref (k x) <;> rfl
+  | impure c k' ih =>
+    change runRead dref (FreeM.impure c fun v => k' v >>= k) = _
+    rcases c with e | o
+    · rfl
+    · cases o with
+      | regRead r =>
+        simp only [runRead]
+        cases dref r with
+        | none => rfl
+        | some v =>
+          dsimp only
+          rw [ih v]
+          cases runRead dref (k' v) with
+          | none => rfl
+          | some p => obtain ⟨x, b⟩ := p; simp [Option.map]; cases runRead dref (k x) <;> rfl
+      | barrier _ | cacheOp _ | tlbi _ | translationStart _ | translationEnd _ | takeException _
+      | returnException _ | cycleCount | message _ =>
+        simp only [runRead]
+        rw [ih ()]
+        cases runRead dref (k' ()) with
+        | none => rfl
+        | some p => obtain ⟨x, b⟩ := p; simp [Option.map]; cases runRead dref (k x) <;> rfl
+      | getCycleCount =>
+        simp only [runRead]
+        rw [ih (0 : Nat)]
+        cases runRead dref (k' (0 : Nat)) with
+        | none => rfl
+        | some p => obtain ⟨x, b⟩ := p; simp [Option.map]; cases runRead dref (k x) <;> rfl
+      | _ => rfl
+
+/-- `runRead` is monotone in its reference map. -/
+theorem runRead_mono (d1 d2 : (r : Register) → Option (RegisterType r))
+    (hd : ∀ r v, d1 r = some v → d2 r = some v) {X : Type} (m : SailM X) :
+    ∀ x b, runRead d1 m = some (x, b) → runRead d2 m = some (x, b) := by
+  induction m with
+  | pure y => intro x b h; exact h
+  | impure c k ih =>
+    intro x b h
+    rcases c with e | o
+    · simp [runRead] at h
+    · cases o with
+      | regRead r =>
+        simp only [runRead] at h ⊢
+        cases h1 : d1 r with
+        | none => rw [h1] at h; cases h
+        | some v =>
+          rw [h1] at h
+          rw [hd r v h1]
+          dsimp only at h ⊢
+          cases h2 : runRead d1 (k v) with
+          | none => rw [h2] at h; cases h
+          | some p =>
+            rw [h2] at h
+            rw [ih v p.1 p.2 h2]
+            exact h
+      | barrier _ | cacheOp _ | tlbi _ | translationStart _ | translationEnd _ | takeException _
+      | returnException _ | cycleCount | message _ =>
+        simp only [runRead] at h ⊢
+        cases h2 : runRead d1 (k ()) with
+        | none => rw [h2] at h; cases h
+        | some p => rw [h2] at h; rw [ih () p.1 p.2 h2]; exact h
+      | getCycleCount =>
+        simp only [runRead] at h ⊢
+        cases h2 : runRead d1 (k (0 : Nat)) with
+        | none => rw [h2] at h; cases h
+        | some p => rw [h2] at h; rw [ih (0 : Nat) p.1 p.2 h2]; exact h
+      | _ => simp [runRead] at h
 
 /-! ## §2 `architecture` -/
 
@@ -234,6 +331,130 @@ theorem effectivePrivilege_rel (acc : MemoryAccessType mem_payload) (m1 m2 : Bit
     (h1 : _get_Mstatus_MPRV m1 = 0#1) (h2 : _get_Mstatus_MPRV m2 = 0#1) :
     effectivePrivilege acc m1 p = effectivePrivilege acc m2 p := by
   rw [effectivePrivilege_noMPRV acc m1 p h1, effectivePrivilege_noMPRV acc m2 p h2]
+
+end fun_rel
+
+/-! ### What `msRelSU` preserves: every `mstatus` field but `MPP` and `MIE` -/
+section msrel
+variable {v w : BitVec 64}
+
+theorem msRelSU.symm (h : msRelSU v w) : msRelSU w v := by
+  obtain ⟨h1, h2⟩ := h; refine ⟨h1.symm, ?_⟩; bv_decide
+
+theorem msRelSU_SUM (h : msRelSU v w) : _get_Mstatus_SUM v = _get_Mstatus_SUM w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_SUM, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_MXR (h : msRelSU v w) : _get_Mstatus_MXR v = _get_Mstatus_MXR w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_MXR, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_SXL (h : msRelSU v w) : _get_Mstatus_SXL v = _get_Mstatus_SXL w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_SXL, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_UXL (h : msRelSU v w) : _get_Mstatus_UXL v = _get_Mstatus_UXL w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_UXL, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_SIE (h : msRelSU v w) : _get_Mstatus_SIE v = _get_Mstatus_SIE w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_SIE, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_SPIE (h : msRelSU v w) : _get_Mstatus_SPIE v = _get_Mstatus_SPIE w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_SPIE, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_SPP (h : msRelSU v w) : _get_Mstatus_SPP v = _get_Mstatus_SPP w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_SPP, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_TVM (h : msRelSU v w) : _get_Mstatus_TVM v = _get_Mstatus_TVM w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_TVM, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_TW (h : msRelSU v w) : _get_Mstatus_TW v = _get_Mstatus_TW w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_TW, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_TSR (h : msRelSU v w) : _get_Mstatus_TSR v = _get_Mstatus_TSR w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_TSR, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_FS (h : msRelSU v w) : _get_Mstatus_FS v = _get_Mstatus_FS w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_FS, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_VS (h : msRelSU v w) : _get_Mstatus_VS v = _get_Mstatus_VS w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_VS, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_XS (h : msRelSU v w) : _get_Mstatus_XS v = _get_Mstatus_XS w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_XS, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_SD (h : msRelSU v w) : _get_Mstatus_SD v = _get_Mstatus_SD w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_SD, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_MPRV (h : msRelSU v w) : _get_Mstatus_MPRV v = _get_Mstatus_MPRV w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_MPRV, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_SBE (h : msRelSU v w) : _get_Mstatus_SBE v = _get_Mstatus_SBE w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_SBE, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_MBE (h : msRelSU v w) : _get_Mstatus_MBE v = _get_Mstatus_MBE w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_MBE, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_MPIE (h : msRelSU v w) : _get_Mstatus_MPIE v = _get_Mstatus_MPIE w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_MPIE, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_SPELP (h : msRelSU v w) : _get_Mstatus_SPELP v = _get_Mstatus_SPELP w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_SPELP, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_MPELP (h : msRelSU v w) : _get_Mstatus_MPELP v = _get_Mstatus_MPELP w := by
+  obtain ⟨h1, h2⟩ := h
+  simp only [_get_Mstatus_MPELP, Sail.BitVec.extractLsb]
+  bv_decide
+
+theorem msRelSU_MPRV_zero (h : msRelSU v w) : _get_Mstatus_MPRV v = 0#1 := by
+  have := h.2; simp only [_get_Mstatus_MPRV, Sail.BitVec.extractLsb]; bv_decide
+
+/-- With `msRelSU`, the effective privilege of both values is the current one. -/
+theorem msRelSU_effectivePrivilege (h : msRelSU v w) (acc : MemoryAccessType mem_payload)
+    (p : Privilege) : effectivePrivilege acc v p = pure p ∧ effectivePrivilege acc w p = pure p := by
+  have hv := msRelSU_MPRV_zero h
+  have hw : _get_Mstatus_MPRV w = 0#1 := by rw [← msRelSU_MPRV h]; exact hv
+  exact ⟨effectivePrivilege_noMPRV acc v p hv, effectivePrivilege_noMPRV acc w p hw⟩
+
+end msrel
+
+section fun_rel2
+variable {D : UFoot} {B : Privilege → Bool} {Rv : RegRel} {G : RegFile → RegFile → Prop}
 
 /-! ## §4 Trap bookkeeping at S -/
 
@@ -307,6 +528,6 @@ theorem relRun_trap_handler_S (hrefl : ∀ r v, Rv r v v) (hG : GStable D Rv G) 
       try (rename_i hh; simp only [hh])
       first | exact relRun2_pure _ | (apply relRun2_fail)
 
-end fun_rel
+end fun_rel2
 
 end MachCSL

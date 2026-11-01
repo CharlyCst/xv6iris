@@ -46,7 +46,8 @@ macro "rel_stepW " hE:ident hW:ident hrefl:ident hG:ident : tactic => `(tactic| 
   | (apply relRun2_memWrite; intro _)
   | (apply relRun2_regWrite $hG _ ($hW _ (by decide)) _ _ ($hrefl _ _))
   | (dsimp only [FreeM.bind])
-  | (simp only [pure_bind]))
+  | (simp only [pure_bind])
+  | (simp only [Function.comp, FreeM.bind, ExceptT.bindCont]))
 
 /-- The relation on `mstatus` that S- and U-mode code cannot observe: the two values agree outside
 `MPP` (bits 11–12) and `MIE` (bit 3), and `MPRV` is clear (so `MPP` is not consulted by address
@@ -451,7 +452,22 @@ theorem msRelSU_effectivePrivilege (h : msRelSU v w) (acc : MemoryAccessType mem
   have hw : _get_Mstatus_MPRV w = 0#1 := by rw [← msRelSU_MPRV h]; exact hv
   exact ⟨effectivePrivilege_noMPRV acc v p hv, effectivePrivilege_noMPRV acc w p hw⟩
 
+theorem msRelSU_effPriv_v (h : msRelSU v w) :
+    ∀ acc p, effectivePrivilege acc v p = pure p := fun acc p => (msRelSU_effectivePrivilege h acc p).1
+theorem msRelSU_effPriv_w (h : msRelSU v w) :
+    ∀ acc p, effectivePrivilege acc w p = pure p := fun acc p => (msRelSU_effectivePrivilege h acc p).2
+
 end msrel
+
+/-- **A read of `mstatus` related by `msRelSU`**: both continuations, after rewriting every S/U-visible
+field and the effective privilege of the second value into the first's, are expected to coincide. -/
+macro "rel_ms " hdms:ident hms:ident : tactic => `(tactic| (
+  apply relRun2_regRead .mstatus $hdms
+  intro v w hvw
+  have hr := ($hms v w).1 hvw
+  try simp only [Function.comp, FreeM.bind, ExceptT.bindCont]
+  try simp only [msRelSU_SUM hr, msRelSU_MXR hr, msRelSU_SXL hr, msRelSU_UXL hr, msRelSU_SIE hr, msRelSU_SPIE hr, msRelSU_SPP hr, msRelSU_TVM hr, msRelSU_TW hr, msRelSU_TSR hr, msRelSU_FS hr, msRelSU_VS hr, msRelSU_XS hr, msRelSU_SD hr, msRelSU_MPRV hr, msRelSU_SBE hr, msRelSU_MBE hr, msRelSU_MPIE hr, msRelSU_SPELP hr, msRelSU_MPELP hr, msRelSU_effPriv_v hr, msRelSU_effPriv_w hr]))
+
 
 section fun_rel2
 variable {D : UFoot} {B : Privilege → Bool} {Rv : RegRel} {G : RegFile → RegFile → Prop}

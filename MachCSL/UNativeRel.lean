@@ -373,6 +373,47 @@ theorem relRun2_refl_of_eqRead (hrefl : ∀ r v, Rv r v v)
     RelRun2 D B Rv m m :=
   relRun_of_eqRead hrefl heq hpriv m
 
+/-- Related files stay related under writes of two related values. -/
+theorem nrel_setPin2 {s1 s2 : NSt} (hrel : NRel Rv s1 s2) (r : Register) (v1 v2 : RegisterType r)
+    (hv : Rv r v1 v2) :
+    NRel Rv { s1 with u := { s1.u with pin := s1.u.pin.set r v1 } }
+      { s2 with u := { s2.u with pin := s2.u.pin.set r v2 } } where
+  file r' := by
+    show Rv r' (({ s1.u with pin := s1.u.pin.set r v1 } : UWSt).file r')
+      (({ s2.u with pin := s2.u.pin.set r v2 } : UWSt).file r')
+    rw [UWSt.file_setPin, UWSt.file_setPin]
+    unfold RegFile.set BootRegs.set
+    by_cases h : r' = r
+    · subst h; simp only [dite_true]; exact hv
+    · simp only [h, dite_false]; exact hrel.file r'
+  T := hrel.T
+  dirty := hrel.dirty
+  rv := hrel.rv
+
+/-- **A write of two related values** (writable by `D`, not the privilege). -/
+theorem relRun2_regWrite {X : Type} (r : Register) (hd : D.Dw r = true) (v1 v2 : RegisterType r)
+    (hv : Rv r v1 v2) (k1 k2 : PUnit → SailM X) (hk : RelRun2 D B Rv (k1 ()) (k2 ())) :
+    RelRun2 D B Rv (FreeM.impure (.ok (.regWrite r v1)) k1) (FreeM.impure (.ok (.regWrite r v2)) k2) := by
+  have hr : r ≠ .cur_privilege := by
+    rintro rfl; rw [D.noPriv] at hd; cases hd
+  intro orc s1 s2 res1 hrel h
+  have hown : ∀ v, nOwn (.ok (.regWrite r v) : Eff RegisterType exception) = false := by
+    intro v; cases r <;> first | exact absurd rfl hr | rfl
+  have e : ∀ (s : NSt) (v : RegisterType r) (k : PUnit → SailM X),
+      uxnRun D B orc s (FreeM.impure (.ok (.regWrite r v)) k) =
+        uxnRun D B orc { s with u := { s.u with pin := s.u.pin.set r v } } (k ()) := by
+    intro s v k
+    rw [uxnw_node D B orc s (.ok (.regWrite r v)) k (hown v)]
+    simp only [runRW, hd, if_true]
+    rfl
+  rw [e] at h
+  rw [e]
+  exact hk orc _ _ res1 (nrel_setPin2 hrel r v1 v2 hv) h
+
+/-- Two returns of the same value. -/
+theorem relRun2_pure {X : Type} (x : X) : RelRun2 D B Rv (FreeM.pure x) (FreeM.pure x) :=
+  relRun_pure x
+
 end rel
 
 end MachCSL

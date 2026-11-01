@@ -414,6 +414,149 @@ theorem relRun2_regWrite {X : Type} (r : Register) (hd : D.Dw r = true) (v1 v2 :
 theorem relRun2_pure {X : Type} (x : X) : RelRun2 D B Rv (FreeM.pure x) (FreeM.pure x) :=
   relRun_pure x
 
+/-! ## §4 Node by node, heterogeneous continuations (for a relational symbolic walk) -/
+
+/-- A node that is neither a register access nor answered by the native walker (`nOwn`). -/
+def nPlain : Eff RegisterType exception → Bool
+  | .ok (.regRead _) => false
+  | .ok (.regWrite _ _) => false
+  | .ok (.memRead _ _ _) => false
+  | .ok (.memWrite _ _ _) => false
+  | .ok _ => true
+  | .error _ => true
+
+/-- A plain node's walk does not look at the register file and leaves the walker state alone. -/
+theorem runRW_node_plain (c : Eff RegisterType exception) (hc : nPlain c = true) (orc : UOrc)
+    (u u' : UWSt) : (runRW D orc u (FreeM.impure c FreeM.pure)).map (fun r => (r.1, r.2.2)) =
+      (runRW D orc u' (FreeM.impure c FreeM.pure)).map (fun r => (r.1, r.2.2)) ∧
+      ∀ r, runRW D orc u (FreeM.impure c FreeM.pure) = some r → r.2.1 = u := by
+  rcases c with e | op
+  · exact ⟨by simp [runRW], fun r h => by simp [runRW] at h⟩
+  · cases op <;> simp [nPlain] at hc <;>
+      exact ⟨by simp [runRW], fun r h => by
+        simp only [runRW] at h
+        first | (simp only [Option.some.injEq] at h; subst h; rfl) | cases h⟩
+
+/-- **A plain node on both sides**, with continuations relational at every answer. -/
+theorem relRun2_plain {X : Type} (c : Eff RegisterType exception) (hc : nPlain c = true)
+    (k1 k2 : ArchSem.Effect.ret c → SailM X) (hk : ∀ x, RelRun2 D B Rv (k1 x) (k2 x)) :
+    RelRun2 D B Rv (FreeM.impure c k1) (FreeM.impure c k2) := by
+  have hown : nOwn c = false := by
+    rcases c with e | op
+    · rfl
+    · cases op <;> simp_all [nPlain, nOwn]
+  intro orc s1 s2 res1 hrel h
+  rw [uxnw_node D B orc s1 c k1 hown] at h
+  rw [uxnw_node D B orc s2 c k2 hown]
+  obtain ⟨hmap, hst⟩ := runRW_node_plain (D := D) c hc orc s1.u s2.u
+  cases h1 : runRW D orc s1.u (FreeM.impure c FreeM.pure) with
+  | none => rw [h1] at h; cases h
+  | some r1 =>
+    rw [h1] at h
+    have hs1 := hst r1 h1
+    cases h2 : runRW D orc s2.u (FreeM.impure c FreeM.pure) with
+    | none => rw [h1, h2] at hmap; cases hmap
+    | some r2 =>
+      rw [h1, h2] at hmap
+      simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hmap
+      have hs2 := (runRW_node_plain (D := D) c hc orc s2.u s2.u).2 r2 h2
+      simp only [Option.bind_some]
+      simp only [Option.bind_some] at h
+      rw [← hmap.1, ← hmap.2, hs2]
+      rw [hs1] at h
+      exact hk r1.1 r1.2.2 s1 s2 res1 hrel h
+
+/-- **A read of an equal register on both sides.** -/
+theorem relRun2_regRead_eq {X : Type} (r : Register) (hd : D.Dr r = true) (hr : r ≠ .cur_privilege)
+    (heqr : ∀ v w, Rv r v w → v = w) (k1 k2 : RegisterType r → SailM X)
+    (hk : ∀ v, RelRun2 D B Rv (k1 v) (k2 v)) :
+    RelRun2 D B Rv (FreeM.impure (.ok (.regRead r)) k1) (FreeM.impure (.ok (.regRead r)) k2) :=
+  relRun2_regRead r hd hr k1 k2 fun v w hvw => by rw [heqr v w hvw]; exact hk w
+
+/-- **The same privilege write on both sides** (the privilege is related only to itself). -/
+theorem relRun2_priv {X : Type} (hrefl : ∀ r v, Rv r v v)
+    (hpriv : ∀ v w, Rv .cur_privilege v w → v = w) (p : Privilege) (k1 k2 : PUnit → SailM X)
+    (hk : RelRun2 D B Rv (k1 ()) (k2 ())) (hk12 : k1 = k2) :
+    RelRun2 D B Rv (FreeM.impure (.ok (.regWrite .cur_privilege p)) k1)
+      (FreeM.impure (.ok (.regWrite .cur_privilege p)) k2) := by
+  subst hk12
+  intro orc s1 s2 res1 hrel h
+  have hp : s1.u.file .cur_privilege = s2.u.file .cur_privilege := hpriv _ _ (hrel.file _)
+  cases h0 : B (s1.u.file .cur_privilege) with
+  | false => rw [uxnw_priv_out D B _ s1 p k1 h0] at h; cases h
+  | true =>
+  have h0' : B (s2.u.file .cur_privilege) = true := by rw [← hp]; exact h0
+  cases h1 : B p with
+  | true =>
+    rw [uxnw_priv_quiet D B _ s1 p k1 h0 h1] at h
+    rw [uxnw_priv_quiet D B _ s2 p k1 h0' h1]
+    exact hk orc _ _ res1 (nrel_setPin hrefl hrel .cur_privilege p) h
+  | false =>
+    rw [uxnw_priv_exit D B _ s1 p k1 h0 h1] at h
+    rw [uxnw_priv_exit D B _ s2 p k1 h0' h1]
+    simp only [Option.some.injEq] at h
+    subst h
+    exact ⟨_, rfl, rfl, rfl, rfl, hrel⟩
+
+/-- **The same memory read on both sides** (memory, dirty bytes and reservation are equal). -/
+theorem relRun2_memRead {X : Type} {n vasize : Nat}
+    (req : Mem_read_request n vasize Arch.pa Arch.translation Arch.arch_ak)
+    (k1 k2 : Result ((BitVec (8 * n)) × (Option Bool)) Arch.abort → SailM X)
+    (hk : ∀ x, RelRun2 D B Rv (k1 x) (k2 x)) :
+    RelRun2 D B Rv (FreeM.impure (.ok (.memRead n vasize req)) k1)
+      (FreeM.impure (.ok (.memRead n vasize req)) k2) := by
+  intro orc s1 s2 res1 hrel h
+  rw [uxnw_read] at h
+  rw [uxnw_read, ← hrel.T, ← hrel.dirty]
+  split at h
+  · rename_i hn
+    rw [if_pos hn]
+    split at h
+    · rename_i w hw
+      try rw [hw]
+      try dsimp only
+      split at h
+      · rename_i hd
+        rw [if_pos hd]
+        exact hk _ _ s1 s2 res1 hrel h
+      · rename_i hd
+        rw [if_neg hd]
+        split at h
+        · rename_i hx
+          rw [if_pos hx]
+          exact hk _ orc { s1 with u := { s1.u with rv := true } } _ res1 ⟨hrel.file, rfl, rfl, rfl⟩ h
+        · rename_i hx
+          rw [if_neg hx]
+          exact hk _ _ s1 s2 res1 hrel h
+    · cases h
+  · cases h
+
+/-- **The same memory write on both sides.** -/
+theorem relRun2_memWrite {X : Type} {n vasize : Nat}
+    (req : Mem_write_request n vasize Arch.pa Arch.translation Arch.arch_ak)
+    (k1 k2 : Result (Option Bool) Arch.abort → SailM X)
+    (hk : ∀ x, RelRun2 D B Rv (k1 x) (k2 x)) :
+    RelRun2 D B Rv (FreeM.impure (.ok (.memWrite n vasize req)) k1)
+      (FreeM.impure (.ok (.memWrite n vasize req)) k2) := by
+  intro orc s1 s2 res1 hrel h
+  rw [uxnw_write] at h
+  rw [uxnw_write, ← hrel.T]
+  split at h
+  · rename_i hn
+    rw [if_pos hn]
+    split at h
+    · rename_i w' hv
+      try rw [hv]
+      try dsimp only
+      split at h
+      · rename_i ho
+        rw [if_pos ho]
+        exact hk _ orc ⟨{ s1.u with rv := false }, bmWrite s1.T req.pa n w', dirtyAdd s1.dirty req.pa n⟩ _
+          res1 ⟨hrel.file, rfl, by rw [hrel.dirty], rfl⟩ h
+      · cases h
+    · cases h
+  · cases h
+
 end rel
 
 end MachCSL

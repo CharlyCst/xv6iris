@@ -257,3 +257,4 @@ import MachCSL.UxdExcl
 import MachCSL.UNativeSwp
 import MachCSL.UNativeMono
 import MachCSL.UNativeRel
+import MachCSL.UNativeFun

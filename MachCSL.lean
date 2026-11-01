@@ -252,3 +252,4 @@ import MachCSL.UkdWalk
 import MachCSL.UFenceU
 import MachCSL.BvLemmas
 import MachCSL.OwnAllocSame
+import MachCSL.UNative
